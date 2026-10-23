@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "id",
+    "versao",
+    "produto",
+    "natureza",
+    "unidade",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "versao": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "produto": {
+      "type": "string"
+    },
+    "natureza": {
+      "enum": [
+        "OBSERVADO",
+        "CALCULADO",
+        "HIPOTESE"
+      ]
+    },
+    "unidade": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "PROPOSTA",
+        "EM_VERIFICACAO",
+        "VERIFICADA",
+        "APROVADA",
+        "REJEITADA",
+        "SUBSTITUIDA"
+      ]
+    },
+    "fonte_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "justificativa_hipotese": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

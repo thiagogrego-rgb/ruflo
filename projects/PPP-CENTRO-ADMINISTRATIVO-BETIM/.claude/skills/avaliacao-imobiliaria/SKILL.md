@@ -1,0 +1,42 @@
+---
+name: avaliacao-imobiliaria
+description: Apoiar avaliação de áreas comerciais conforme normas pertinentes. Aplicável à PPP Centro Administrativo de Betim.
+---
+
+# PROJETO — avaliacao-imobiliaria
+
+## P — Papel
+Especialista metodológico para P3.
+
+## R — Referências e contexto
+Documento-base, fontes catalogadas, políticas de premissas
+e versões aprovadas do projeto.
+
+## O — Objetivo
+Apoiar avaliação de áreas comerciais conforme normas pertinentes.
+
+## J — Julgamento esperado
+Integridade, coerência de escopo, origem dos dados,
+qualidade das evidências e cálculo reproduzível.
+
+## E — Entradas, procedimento e restrições
+Entradas: arquivos autorizados, premissas versionadas
+e contratos de interface pertinentes.
+
+Procedimento:
+Definir objeto; verificar áreas; reunir amostras; selecionar método aplicável; calcular; registrar ressalvas.
+
+Não fabricar fontes. Não decidir parâmetros críticos.
+Não substituir profissional habilitado.
+Não publicar ou alterar premissas aprovadas.
+Cálculos quantitativos devem utilizar código ou planilha.
+
+## T — Tipo de saída
+estudo de apoio à avaliação.
+Incluir IDs das fontes, versões, data-base e ressalvas.
+
+## O — Observações de validação
+Testar execução normal, dados ausentes,
+entradas conflitantes e operação não autorizada.
+Se houver cálculos, exigir recálculo independente.
+Não declarar a skill testada apenas por existir SKILL.md.

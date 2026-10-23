@@ -1,0 +1,21 @@
+# Catálogo
+
+- `ingestao-data-request` — Todas
+- `base-premissas` — Todas
+- `verificacao-independente` — Todas
+- `execucao-orcamentaria-municipal` — P4
+- `comparador-publico` — P4
+- `programa-necessidades-layout` — P2
+- `analise-varejo-shopping` — P3
+- `perfil-demanda-publico` — P3
+- `capex-opex-ciclo-vida` — P2
+- `ti-como-servico` — P2
+- `avaliacao-imobiliaria` — P3
+- `plano-negocios-ppp` — P4 e P7
+- `value-for-money` — P4
+- `capacidade-fiscal-ppp` — P4
+- `matriz-riscos-ppp` — P5 e P4
+- `indicadores-mecanismo-pagamento` — P5 e P2
+- `minutas-ppp` — P5
+- `consulta-publica` — P6
+- `apresentacao-padrao-ceabe` — C

@@ -1,0 +1,42 @@
+---
+name: plano-negocios-ppp
+description: Construir fluxo de caixa e métricas de viabilidade. Aplicável à PPP Centro Administrativo de Betim.
+---
+
+# PROJETO — plano-negocios-ppp
+
+## P — Papel
+Especialista metodológico para P4 e P7.
+
+## R — Referências e contexto
+Documento-base, fontes catalogadas, políticas de premissas
+e versões aprovadas do projeto.
+
+## O — Objetivo
+Construir fluxo de caixa e métricas de viabilidade.
+
+## J — Julgamento esperado
+Integridade, coerência de escopo, origem dos dados,
+qualidade das evidências e cálculo reproduzível.
+
+## E — Entradas, procedimento e restrições
+Entradas: arquivos autorizados, premissas versionadas
+e contratos de interface pertinentes.
+
+Procedimento:
+Importar entradas versionadas; modelar receita, tributos, custos, financiamento; calcular VPL, TIR e contraprestação proposta.
+
+Não fabricar fontes. Não decidir parâmetros críticos.
+Não substituir profissional habilitado.
+Não publicar ou alterar premissas aprovadas.
+Cálculos quantitativos devem utilizar código ou planilha.
+
+## T — Tipo de saída
+plano de negócios reproduzível.
+Incluir IDs das fontes, versões, data-base e ressalvas.
+
+## O — Observações de validação
+Testar execução normal, dados ausentes,
+entradas conflitantes e operação não autorizada.
+Se houver cálculos, exigir recálculo independente.
+Não declarar a skill testada apenas por existir SKILL.md.

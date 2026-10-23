@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+# Conteúdo de dados/ e registros/ fica fora do git; a estrutura (.gitkeep) não.
+dados/**/*
+!dados/**/
+!dados/**/.gitkeep
+registros/**/*
+!registros/**/
+!registros/**/.gitkeep
+*.zip
