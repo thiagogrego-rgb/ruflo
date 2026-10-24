@@ -7,6 +7,7 @@ Qualquer falha do mecanismo resulta em bloqueio (fail-closed).
 """
 import base64
 import binascii
+import hashlib
 import json
 from pathlib import Path
 
@@ -54,8 +55,14 @@ def verificar_assinatura(chave_publica_hex, assinatura_b64, mensagem):
     return True
 
 
-def carregar_aprovadores(caminho=REGISTRO_PADRAO, chave_raiz=None):
-    """Com `chave_raiz` (hex), exige `<caminho>.sig` assinado pela raiz de governança."""
+def carregar_aprovadores(caminho=REGISTRO_PADRAO, chave_raiz=None, politica_serie=None):
+    """Com `chave_raiz` (hex), exige `<caminho>.sig` assinado pela raiz de governança.
+
+    Com `politica_serie` (GOV-04), exige também série crescente verificada contra a
+    referência externa; isso só tem sentido com cadastro assinado, então `chave_raiz` é obrigatória.
+    """
+    if politica_serie is not None and chave_raiz is None:
+        raise AutorizacaoIndisponivel("Política de série exige cadastro assinado pela raiz de governança")
     try:
         validador = carregar_validador("aprovadores.schema.json")
         bruto = Path(caminho).read_bytes()
@@ -73,6 +80,8 @@ def carregar_aprovadores(caminho=REGISTRO_PADRAO, chave_raiz=None):
     ids = [a["id"] for a in dados["aprovadores"]]
     if len(ids) != len(set(ids)):
         raise AutorizacaoIndisponivel("Registro de aprovadores com identificadores duplicados")
+    if politica_serie is not None:
+        politica_serie.validar(dados.get("serie"), hashlib.sha256(bruto).hexdigest())
     return {a["id"]: a for a in dados["aprovadores"] if a["ativo"]}
 
 
@@ -87,7 +96,7 @@ def _chave_publica(hex_chave):
 
 
 def verificar(aprovacao, *, premissa_id, versao, sha256_versao, proponente, produto,
-              registro=REGISTRO_PADRAO, chave_raiz=None):
+              registro=REGISTRO_PADRAO, chave_raiz=None, politica_serie=None):
     """Retorna o aprovador se a aprovação for válida; caso contrário, levanta PermissionError."""
     try:
         erros = erros_schema(carregar_validador("aprovacao.schema.json"), aprovacao)
@@ -98,7 +107,7 @@ def verificar(aprovacao, *, premissa_id, versao, sha256_versao, proponente, prod
     p = aprovacao["payload"]
     if (p["premissa_id"], p["versao"], p["sha256_versao"]) != (premissa_id, versao, sha256_versao):
         raise AprovacaoInvalida("Aprovação vinculada a outra premissa, versão ou conteúdo")
-    aprovador = carregar_aprovadores(registro, chave_raiz).get(p["aprovador_id"])
+    aprovador = carregar_aprovadores(registro, chave_raiz, politica_serie).get(p["aprovador_id"])
     if aprovador is None:
         raise AprovacaoInvalida(f"Identidade não autorizada: {p['aprovador_id']}")
     if PAPEL_PREMISSAS not in aprovador["papeis"] or produto not in aprovador["produtos"]:

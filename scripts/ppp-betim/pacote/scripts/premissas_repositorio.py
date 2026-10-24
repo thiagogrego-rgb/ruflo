@@ -23,6 +23,7 @@ from pathlib import Path
 
 import aprovacao
 from governanca import PADRAO_PREMISSA, PremissaInvalida, canonico, validar_premissa
+from limites import LimiteExcedido, Limites
 
 PADRAO_PROPONENTE = re.compile(r"[a-z0-9][a-z0-9._-]{1,63}")
 PADRAO_VERSAO = re.compile(r"v([1-9][0-9]*)\.json")
@@ -68,11 +69,13 @@ def gravar_exclusivo(destino, conteudo):
 
 class RepositorioPremissas:
     def __init__(self, registros, registro_aprovadores=aprovacao.REGISTRO_PADRAO,
-                 chave_raiz=None):
+                 chave_raiz=None, politica_serie=None, limites=None):
         self.premissas = Path(registros) / "premissas"
         self.fontes = Path(registros) / "fontes"
         self.registro_aprovadores = registro_aprovadores
         self.chave_raiz = chave_raiz
+        self.politica_serie = politica_serie
+        self.limites = limites if limites is not None else Limites()
 
     def _diretorio(self, premissa_id):
         if not isinstance(premissa_id, str) or not PADRAO_PREMISSA.fullmatch(premissa_id):
@@ -131,6 +134,7 @@ class RepositorioPremissas:
             "hash_anterior": cadeia[-1][1] if cadeia else None,
         }
         conteudo = canonico(envelope)
+        self._checar_crescimento(len(conteudo), versoes_existentes=len(cadeia))
         diretorio = self._diretorio(premissa["id"])
         diretorio.mkdir(parents=True, exist_ok=True)
         try:
@@ -140,11 +144,42 @@ class RepositorioPremissas:
                 f"{premissa['id']} v{esperada} já registrada; registros não são sobrescritos") from erro
         return sha256(conteudo)
 
+    def _uso(self):
+        """(premissas, bytes) em disco; inclui temporários, que contam como crescimento."""
+        premissas = total = 0
+        if self.premissas.is_dir():
+            for pasta in self.premissas.iterdir():
+                if not pasta.is_dir():
+                    continue
+                premissas += 1
+                for arquivo in pasta.iterdir():
+                    try:
+                        total += arquivo.lstat().st_size
+                    except OSError:
+                        pass
+        return premissas, total
+
+    def _checar_crescimento(self, bytes_novos, versoes_existentes):
+        """Aplica os limites de crescimento antes de gravar; levanta LimiteExcedido."""
+        limites = self.limites
+        if bytes_novos > limites.max_bytes_por_versao:
+            raise LimiteExcedido(
+                f"Versão com {bytes_novos} bytes excede o limite de {limites.max_bytes_por_versao}")
+        if versoes_existentes >= limites.max_versoes_por_premissa:
+            raise LimiteExcedido(
+                f"Premissa já tem {versoes_existentes} versões (limite {limites.max_versoes_por_premissa})")
+        premissas, total = self._uso()
+        if versoes_existentes == 0 and premissas >= limites.max_premissas:
+            raise LimiteExcedido(f"Limite de {limites.max_premissas} premissas atingido")
+        if total + bytes_novos > limites.max_bytes_total:
+            raise LimiteExcedido(f"Limite de {limites.max_bytes_total} bytes de registros atingido")
+
     def _verificar_aprovacao(self, premissa_id, n, hash_versao, envelope, dados):
         return aprovacao.verificar(
             dados, premissa_id=premissa_id, versao=n, sha256_versao=hash_versao,
             proponente=envelope["proponente"], produto=envelope["premissa"]["produto"],
-            registro=self.registro_aprovadores, chave_raiz=self.chave_raiz)
+            registro=self.registro_aprovadores, chave_raiz=self.chave_raiz,
+            politica_serie=self.politica_serie)
 
     def registrar_aprovacao(self, dados):
         """Verifica e arquiva uma aprovação assinada. Nunca substitui outra."""
@@ -194,3 +229,16 @@ class RepositorioPremissas:
         for temporario in removidos:
             temporario.unlink()
         return removidos
+
+    def recuperar_diretorios_vazios(self):
+        """Remove pastas de premissa vazias, resíduo de queda entre criar a pasta e publicar a versão.
+
+        Separado de `recuperar()` para preservar o contrato dele (lista de temporários removidos).
+        Executar sem gravações em curso.
+        """
+        if not self.premissas.is_dir():
+            return []
+        vazias = sorted(p for p in self.premissas.iterdir() if p.is_dir() and not any(p.iterdir()))
+        for pasta in vazias:
+            pasta.rmdir()
+        return vazias

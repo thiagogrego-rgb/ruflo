@@ -22,6 +22,9 @@ Funções e agentes de análise.md` precisa ser colocado em `referencias/`.
 **Requisitos:** Python 3.11 ou superior e as dependências de
 `requirements.txt` (`python3 -m pip install -r requirements.txt`). Sem elas,
 o gerador não executa e a validação e a aprovação de premissas falham fechadas.
+Para **produção**, instale exatamente o `requirements.lock` (hashes, somente wheels)
+em um venv de root: `pip install --require-hashes --only-binary=:all: --no-deps -r requirements.lock`.
+O guardião de formato 2 recusa iniciar fora desse lock. Testado apenas em CPython 3.13.
 
 ### Opção 1 — Recebi o ZIP
 
@@ -69,8 +72,9 @@ atesta a integridade da distribuição, não a homologação funcional.
 | Validação de premissas (GOV-01) | JSON Schema aplicado; versões imutáveis com cadeia de hashes; testada com dados sintéticos |
 | Aprovação humana (GOV-02) | Assinatura Ed25519 verificada; registro de aprovadores vazio; proteção efetiva depende de controles externos |
 | Gerador em `scripts/gerar_projeto.py` | Cópia idêntica à fonte, com SHA-256 conferido nos testes |
+| Robustez do núcleo (GOV-04) | Série crescente do cadastro com referência externa, ambiente Python travado e verificado, limites de requisição/frequência/crescimento, verificador independente de checkpoints; validados só contra processos sintéticos sem privilégio; **não homologados** |
 | Fronteira de confiança (GOV-03) | Guardião, papel `ancoradores` e âncora implementados; validados só contra processos sintéticos sem privilégio; **não homologados** |
-| Testes (4 estruturais + 6 de governança + 22 de GOV-01/02 + 21 de GOV-03) | Executados e aprovados; condição para gerar o ZIP. Os 21 de GOV-03 exigem Linux e root e são pulados sem eles |
+| Testes (10 iniciais + 22 de GOV-01/02 + 21 de GOV-03 + 145 de GOV-04 = 198) | Executados e aprovados; condição para gerar o ZIP. Os de integração (GOV-03 e parte do GOV-04) exigem Linux, root e o Python do `requirements.lock`; sem isso são pulados e a fronteira não é validada |
 | Conteúdo do ZIP | Verificado pelo gerador após a criação |
 | Homologação funcional | Pendente |
 
@@ -79,4 +83,7 @@ atesta a integridade da distribuição, não a homologação funcional.
 Ver `governanca/GOV-01-02-fronteira-de-confianca.md` (regras, fronteira,
 permissões e riscos de GOV-01/02) e `governanca/GOV-03-fronteira-efetiva.md`
 (modelo de ameaças, guardião, papel `ancoradores`, âncora, resultados dos
-testes adversariais, riscos residuais e procedimento de implantação).
+testes adversariais, riscos residuais e procedimento de implantação) e
+`governanca/GOV-04-robustez-nucleo.md` (rollback do cadastro, ambiente Python,
+limites de recursos, verificador independente, controles negativos, riscos e
+encaminhamento para revisão independente).

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ppp-betim:schema:referencia-serie:1",
+  "title": "Referência externa da série do cadastro de aprovadores (GOV-04)",
+  "description": "Declaração assinada pela raiz de governança: nenhum cadastro com série inferior pode ser aceito, e a série indicada só vale com o conteúdo de hash indicado. Deve ser entregue por meio protegido, fora do alcance de escrita dos agentes e do host do guardião.",
+  "type": "object",
+  "required": ["payload", "assinatura"],
+  "additionalProperties": false,
+  "properties": {
+    "assinatura": {"type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "formato", "serie_minima", "sha256_cadastro", "emitida_em"],
+      "properties": {
+        "tipo": {"const": "referencia-serie-cadastro"},
+        "formato": {"const": 1},
+        "serie_minima": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sha256_cadastro": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "emitida_em": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2})$"}
+      }
+    }
+  }
+}

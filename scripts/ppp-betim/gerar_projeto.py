@@ -252,6 +252,7 @@ Iniciar inspecionando o ambiente e produzindo inventário.
 # distribuída em `scripts/`, é a raiz do próprio pacote.
 FONTES = (
     "requirements.txt",
+    "requirements.lock",
     "governanca/GOV-01-02-fronteira-de-confianca.md",
     "governanca/aprovadores.json",
     "governanca/schemas/premissa.schema.json",
@@ -259,6 +260,8 @@ FONTES = (
     "governanca/schemas/aprovadores.schema.json",
     "governanca/schemas/guardiao.schema.json",
     "governanca/GOV-03-fronteira-efetiva.md",
+    "governanca/GOV-04-robustez-nucleo.md",
+    "governanca/schemas/referencia-serie.schema.json",
     "scripts/governanca.py",
     "scripts/premissas_repositorio.py",
     "scripts/aprovacao.py",
@@ -266,10 +269,24 @@ FONTES = (
     "scripts/ancora.py",
     "scripts/guardiao.py",
     "scripts/cliente_guardiao.py",
+    "scripts/limites.py",
+    "scripts/serie.py",
+    "scripts/ambiente.py",
+    "scripts/protecao.py",
+    "scripts/gerar_lock.py",
+    "scripts/verificar_ancora.py",
     "testes/apoio.py",
     "testes/test_premissas.py",
     "testes/test_aprovacao.py",
     "testes/test_fronteira.py",
+    "testes/apoio_robustez.py",
+    "testes/apoio_guardiao.py",
+    "testes/test_serie.py",
+    "testes/test_limites.py",
+    "testes/test_ambiente.py",
+    "testes/test_verificar_ancora.py",
+    "testes/test_robustez.py",
+    "testes/test_assinatura_serie.py",
 )
 
 def origem_fontes():
@@ -342,6 +359,9 @@ Funções e agentes de análise.md` precisa ser colocado em `referencias/`.
 **Requisitos:** Python 3.11 ou superior e as dependências de
 `requirements.txt` (`python3 -m pip install -r requirements.txt`). Sem elas,
 o gerador não executa e a validação e a aprovação de premissas falham fechadas.
+Para **produção**, instale exatamente o `requirements.lock` (hashes, somente wheels)
+em um venv de root: `pip install --require-hashes --only-binary=:all: --no-deps -r requirements.lock`.
+O guardião de formato 2 recusa iniciar fora desse lock. Testado apenas em CPython 3.13.
 
 ### Opção 1 — Recebi o ZIP
 
@@ -389,8 +409,9 @@ atesta a integridade da distribuição, não a homologação funcional.
 | Validação de premissas (GOV-01) | JSON Schema aplicado; versões imutáveis com cadeia de hashes; testada com dados sintéticos |
 | Aprovação humana (GOV-02) | Assinatura Ed25519 verificada; registro de aprovadores vazio; proteção efetiva depende de controles externos |
 | Gerador em `scripts/gerar_projeto.py` | Cópia idêntica à fonte, com SHA-256 conferido nos testes |
+| Robustez do núcleo (GOV-04) | Série crescente do cadastro com referência externa, ambiente Python travado e verificado, limites de requisição/frequência/crescimento, verificador independente de checkpoints; validados só contra processos sintéticos sem privilégio; **não homologados** |
 | Fronteira de confiança (GOV-03) | Guardião, papel `ancoradores` e âncora implementados; validados só contra processos sintéticos sem privilégio; **não homologados** |
-| Testes (4 estruturais + 6 de governança + 22 de GOV-01/02 + 21 de GOV-03) | Executados e aprovados; condição para gerar o ZIP. Os 21 de GOV-03 exigem Linux e root e são pulados sem eles |
+| Testes (10 iniciais + 22 de GOV-01/02 + 21 de GOV-03 + 145 de GOV-04 = 198) | Executados e aprovados; condição para gerar o ZIP. Os de integração (GOV-03 e parte do GOV-04) exigem Linux, root e o Python do `requirements.lock`; sem isso são pulados e a fronteira não é validada |
 | Conteúdo do ZIP | Verificado pelo gerador após a criação |
 | Homologação funcional | Pendente |
 
@@ -399,7 +420,10 @@ atesta a integridade da distribuição, não a homologação funcional.
 Ver `governanca/GOV-01-02-fronteira-de-confianca.md` (regras, fronteira,
 permissões e riscos de GOV-01/02) e `governanca/GOV-03-fronteira-efetiva.md`
 (modelo de ameaças, guardião, papel `ancoradores`, âncora, resultados dos
-testes adversariais, riscos residuais e procedimento de implantação).
+testes adversariais, riscos residuais e procedimento de implantação) e
+`governanca/GOV-04-robustez-nucleo.md` (rollback do cadastro, ambiente Python,
+limites de recursos, verificador independente, controles negativos, riscos e
+encaminhamento para revisão independente).
 """)
     write("00-LEIA-ME-PRIMEIRO.md", """# Guia de implantação
 
@@ -683,10 +707,15 @@ class TestEstrutura(unittest.TestCase):
 - GOV-03: serviço guardião (único escritor do armazenamento, identidade do
   proponente via kernel), papel `ancoradores` restrito a checkpoint e âncora de
   checkpoints assinados; validado só contra processos sintéticos sem privilégio.
+- GOV-04: série crescente do cadastro de aprovadores contra referência externa
+  assinada, lock de dependências com hashes e verificação do ambiente, limites de
+  requisição/frequência/crescimento, verificador independente de checkpoints e
+  recuperação após interrupção; validado só contra processos sintéticos sem privilégio.
 - Decisões gerais e publicação: bloqueadas.
 - Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
   infraestrutura onde o agente não tenha privilégio administrativo
-  (`governanca/GOV-03-fronteira-efetiva.md`, seção 10) — não realizada.
+  (`governanca/GOV-03-fronteira-efetiva.md`, seção 10, e
+  `governanca/GOV-04-robustez-nucleo.md`, seção 11) — não realizada.
 - Testes: estruturais, governança inicial, GOV-01/02 e fronteira GOV-03
   (estes últimos são PULADOS sem Linux e root, e nesse caso a fronteira
   permanece não validada).
@@ -736,7 +765,8 @@ if __name__ == "__main__":
         import jsonschema, cryptography  # noqa: F401
     except ImportError as e:
         raise SystemExit(f"Dependência ausente ({e.name}). "
-                         "Instale: python3 -m pip install -r requirements.txt")
+                         "Instale: python3 -m pip install -r requirements.txt "
+                         "(produção: requirements.lock com --require-hashes)")
     try:
         create_project()
         suite = unittest.defaultTestLoader.discover(

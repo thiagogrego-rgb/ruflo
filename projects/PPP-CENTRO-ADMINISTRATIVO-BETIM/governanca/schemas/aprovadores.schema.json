@@ -7,6 +7,7 @@
   "additionalProperties": false,
   "properties": {
     "formato": {"const": 1},
+    "serie": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
     "aprovadores": {
       "type": "array",
       "items": {

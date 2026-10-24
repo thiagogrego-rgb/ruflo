@@ -1,18 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:ppp-betim:schema:guardiao:1",
-  "title": "Configuração do serviço guardião (GOV-03)",
+  "$id": "urn:ppp-betim:schema:guardiao:2",
+  "title": "Configuração do serviço guardião (GOV-03/GOV-04)",
+  "description": "formato 1 = perfil legado (compatível com o GOV-03, sem proteção de rollback do cadastro nem verificação do ambiente); formato 2 = perfil estrito, exige referencia_serie. Chaves do formato 2 em configuração de formato 1 são recusadas para não criar falsa sensação de proteção.",
   "type": "object",
   "additionalProperties": false,
   "required": ["formato", "registros", "aprovadores", "chave_raiz_governanca",
                "chave_privada_guardiao", "socket", "proponentes"],
   "properties": {
-    "formato": {"const": 1},
+    "formato": {"enum": [1, 2]},
     "registros": {"type": "string", "pattern": "^/"},
     "aprovadores": {"type": "string", "pattern": "^/"},
     "chave_raiz_governanca": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "chave_privada_guardiao": {"type": "string", "pattern": "^/"},
     "socket": {"type": "string", "pattern": "^/", "maxLength": 100},
+    "referencia_serie": {"type": "string", "pattern": "^/"},
     "ancoradores": {
       "type": "array", "uniqueItems": true,
       "items": {"type": "integer", "minimum": 1}
@@ -22,6 +24,29 @@
       "minProperties": 1,
       "propertyNames": {"pattern": "^[1-9][0-9]{0,9}$"},
       "additionalProperties": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$"}
+    },
+    "limites": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_requisicao_bytes": {"type": "integer", "minimum": 1024, "maximum": 16777216},
+        "prazo_leitura_s": {"type": "number", "exclusiveMinimum": 0, "maximum": 60},
+        "operacoes_por_minuto": {"type": "number", "exclusiveMinimum": 0, "maximum": 100000},
+        "rajada": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "max_identidades_rastreadas": {"type": "integer", "minimum": 16, "maximum": 1000000},
+        "max_conexoes": {"type": "integer", "minimum": 1, "maximum": 1024},
+        "max_conexoes_por_identidade": {"type": "integer", "minimum": 1, "maximum": 1024},
+        "max_premissas": {"type": "integer", "minimum": 1, "maximum": 10000000},
+        "max_versoes_por_premissa": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "max_bytes_por_versao": {"type": "integer", "minimum": 1024, "maximum": 16777216},
+        "max_bytes_total": {"type": "integer", "minimum": 1048576, "maximum": 1099511627776},
+        "max_checkpoints": {"type": "integer", "minimum": 1, "maximum": 10000000},
+        "max_bytes_checkpoints": {"type": "integer", "minimum": 1024, "maximum": 1099511627776},
+        "intervalo_minimo_checkpoint_s": {"type": "number", "minimum": 0, "maximum": 86400}
+      }
     }
-  }
+  },
+  "if": {"properties": {"formato": {"const": 2}}, "required": ["formato"]},
+  "then": {"required": ["referencia_serie"]},
+  "else": {"not": {"anyOf": [{"required": ["referencia_serie"]}, {"required": ["limites"]}]}}
 }

@@ -42,7 +42,8 @@ def estado_atual(repo):
     return estado
 
 
-def emitir_checkpoint(repo, chave_privada, anterior=None):
+def emitir_checkpoint(repo, chave_privada, anterior=None, cadastro=None):
+    """`cadastro` opcional ({"serie": N, "sha256": H}) registra o cadastro de aprovadores vigente."""
     payload = {
         "tipo": "checkpoint-premissas", "formato": 1,
         "seq": 1 if anterior is None else anterior["payload"]["seq"] + 1,
@@ -50,6 +51,8 @@ def emitir_checkpoint(repo, chave_privada, anterior=None):
         "emitido_em": datetime.now(timezone.utc).isoformat(),
         "estado": estado_atual(repo),
     }
+    if cadastro is not None:
+        payload["cadastro"] = cadastro
     return aprovacao.assinar(payload, chave_privada)
 
 

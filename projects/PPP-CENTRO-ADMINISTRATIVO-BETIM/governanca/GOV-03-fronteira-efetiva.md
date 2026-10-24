@@ -195,10 +195,10 @@ Sem Linux/root, os de fronteira são **pulados** com o aviso "fronteira NÃO hom
 | R3 | Proponente declarado | Resolvido contra o cliente (kernel). Agentes que compartilham um uid compartilham identidade; o mapa uid→id é administrativo |
 | R4 | Agente com escrita em código/cadastro | Prevenido se o agente não é root e o código é de `root`; o guardião recusa iniciar caso contrário |
 | R5 | `root` anula tudo | **Inalterado.** É a premissa do modelo |
-| R9 | Cadastro assinado sem série/validade: reapresentar um cadastro antigo, já assinado, reativa aprovadores revogados | **Aberto.** Recomenda-se número de série monotônico no cadastro, persistido na âncora |
-| R10 | Dependências Python (`jsonschema`, `cryptography`) fora da verificação de proteção do guardião | Aberto: devem estar em venv de `root` (seção 7) |
+| R9 | Cadastro assinado sem série/validade: reapresentar um cadastro antigo, já assinado, reativa aprovadores revogados | **Tratado no GOV-04** (série crescente + referência externa assinada + marca d'água); a efetividade contra o host depende da mídia externa |
+| R10 | Dependências Python (`jsonschema`, `cryptography`) fora da verificação de proteção do guardião | **Tratado no GOV-04** (lock com hashes + verificação do ambiente na inicialização); restam interpretador, stdlib e bibliotecas de sistema |
 | R11 | Guardião comprometido pode apagar/reescrever registros (não forjar aprovações) e emitir checkpoints falsos | Detectável só com âncora independente e carimbo de tempo |
-| R12 | Sem limitação de taxa: propostas ou checkpoints em excesso consomem disco | Aberto (disponibilidade; falha fechada) |
+| R12 | Sem limitação de taxa: propostas ou checkpoints em excesso consomem disco | **Tratado no GOV-04** na aplicação (tamanho, frequência, crescimento); o limite real é a cota do SO |
 | R13 | `SO_PEERCRED` em namespaces/contêineres reporta o uid do namespace do guardião | Validar na implantação (mapa de uid) |
 | R14 | Revisão humana do conteúdo e custódia da chave do aprovador (token de hardware recomendado) | Administrativo; atrito do assinador (tty, confirmação) **não** é segurança |
 | R15 | Unidade systemd e permissões da seção 7 não foram testadas | Pendente |
