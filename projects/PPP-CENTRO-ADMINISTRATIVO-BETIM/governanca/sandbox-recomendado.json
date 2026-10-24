@@ -21,6 +21,12 @@
         "./requirements.txt",
         "./requirements.lock",
         "./.gitignore"
+      ],
+      "denyRead": [
+        "./dados/entrada",
+        "./dados/restritos",
+        "./logs",
+        "./.claude/settings.local.json"
       ]
     }
   }

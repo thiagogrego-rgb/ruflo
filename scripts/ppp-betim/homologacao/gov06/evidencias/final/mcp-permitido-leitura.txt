@@ -1,0 +1,4 @@
+== conectores caso=permitido-leitura rc=0 tools_init=['mcp__sintetico__listar_documentos', 'mcp__sintetico__publicar_documento']
+   mcp__sintetico__listar_documentos        erro=False :: 'DOCS-SINTETICOS: d1, d2'
+   mcp__sintetico__publicar_documento       erro=True :: 'PreToolUse:mcp__sintetico__publicar_documento hook error: [python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/guarda_f'
+   EFEITO: arquivo de publicação existe: False

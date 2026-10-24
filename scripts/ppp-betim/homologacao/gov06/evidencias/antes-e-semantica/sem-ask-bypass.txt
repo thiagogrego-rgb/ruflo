@@ -1,0 +1,3 @@
+== ask-bypass modo=bypassPermissions rc=0
+  resultado: True GOV-05: 'xargs' aplica comandos a caminhos que o texto não mostra; confirmação humana necessária
+  efeitos: {'timeout.md': False, 'b12': False, 'rel.md em P6': False, 'rel.md na raiz': False}

@@ -1,9 +1,9 @@
-"""GOV-05: permissões de escrita, escopo por agente, skills e guarda de ferramentas.
+"""GOV-05/06: permissões de escrita, escopo por agente, skills, terminal e configuração do pacote.
 
 O guarda é exercitado como subprocesso (exatamente como o Claude Code o chama) dentro de um
 projeto falso em diretório temporário, para que nenhum teste toque no pacote real.
 Cobre a camada de ferramentas; o comportamento no runtime real é verificado à parte
-(`governanca/GOV-05-permissoes-e-skills.md`) e NÃO é provado por estes testes.
+(`governanca/GOV-05-permissoes-e-skills.md` e `GOV-06-homologacao-seguranca.md`) e NÃO é provado por estes testes.
 """
 import json
 import os
@@ -11,68 +11,10 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-HOOK_ORIGEM = ROOT / ".claude" / "hooks" / "guarda_ferramentas.py"
-MATRIZ_ORIGEM = ROOT / "governanca" / "matriz-agentes.json"
-AREAS = ("dados", "registros", "governanca", ".claude", "scripts", "testes",
-         "arquitetura", "referencias", "logs", "projects")
-
-
-class ProjetoFalso:
-    """Cópia mínima do esqueleto do projeto com o guarda e a matriz reais."""
-
-    def __init__(self):
-        self.dir = Path(tempfile.mkdtemp(prefix="guarda-"))
-        self.raiz = self.dir / "proj"
-        (self.raiz / ".claude" / "hooks").mkdir(parents=True)
-        (self.raiz / "governanca").mkdir()
-        shutil.copy(HOOK_ORIGEM, self.raiz / ".claude" / "hooks" / HOOK_ORIGEM.name)
-        shutil.copy(MATRIZ_ORIGEM, self.raiz / "governanca" / "matriz-agentes.json")
-        for d in ("produtos/P3", "produtos/P4", "produtos/C", "registros/decisoes",
-                  "dados/restritos", "dados/entrada", "scripts", "testes", "referencias"):
-            (self.raiz / d).mkdir(parents=True)
-        (self.raiz / "registros/decisoes/DEC-001.json").write_text("{}", encoding="utf-8")
-        (self.raiz / "CLAUDE.md").write_text("x", encoding="utf-8")
-        (self.raiz / "scripts/ok.py").write_text("print(1)", encoding="utf-8")
-        self.hook = self.raiz / ".claude" / "hooks" / HOOK_ORIGEM.name
-
-    def chama(self, evento, bruto=None):
-        entrada = bruto if bruto is not None else json.dumps(evento)
-        r = subprocess.run([sys.executable, "-I", str(self.hook)], input=entrada, text=True,
-                           capture_output=True, cwd=self.raiz, timeout=30)
-        return r.returncode, r.stdout, r.stderr
-
-    def escrita(self, caminho, agente=None, ferramenta="Write", campo="file_path"):
-        ev = {"hook_event_name": "PreToolUse", "tool_name": ferramenta, "cwd": str(self.raiz),
-              "tool_input": {campo: str(caminho)}}
-        if agente:
-            ev["agent_type"] = agente
-        return self.chama(ev)[0]
-
-    def skill(self, nome, agente=None):
-        ev = {"tool_name": "Skill", "cwd": str(self.raiz), "tool_input": {"skill": nome}}
-        if agente:
-            ev["agent_type"] = agente
-        return self.chama(ev)[0]
-
-    def bash(self, comando, agente=None):
-        ev = {"tool_name": "Bash", "cwd": str(self.raiz), "tool_input": {"command": comando}}
-        if agente:
-            ev["agent_type"] = agente
-        return self.chama(ev)
-
-    def limpa(self):
-        shutil.rmtree(self.dir, ignore_errors=True)
-
-
-class Base(unittest.TestCase):
-    def setUp(self):
-        self.p = ProjetoFalso()
-        self.addCleanup(self.p.limpa)
+from apoio_guarda import AREAS, Base, MATRIZ_ORIGEM, ROOT, ProjetoFalso  # noqa: F401
 
 
 class TestEscrita(Base):
@@ -143,10 +85,10 @@ class TestEscrita(Base):
                                         "notebook_path"), 0)
         self.assertEqual(self.p.escrita("produtos/P3/e.md", "p3-mercado", "Edit"), 0)
 
-    def test_leitura_nao_e_guardada(self):
-        for ferramenta in ("Read", "Grep", "Glob"):
+    def test_leitura_de_registros_continua_livre(self):
+        for ferramenta, campo in (("Read", "file_path"), ("Grep", "path"), ("Glob", "path")):
             ev = {"tool_name": ferramenta, "agent_type": "p3-mercado", "cwd": str(self.p.raiz),
-                  "tool_input": {"file_path": str(self.p.raiz / "registros/decisoes/DEC-001.json")}}
+                  "tool_input": {campo: str(self.p.raiz / "registros/decisoes"), "pattern": "x"}}
             self.assertEqual(self.p.chama(ev)[0], 0, ferramenta)
 
 
@@ -178,6 +120,7 @@ class TestFalhaFechada(Base):
         self.assertIn("protegida", linhas[0]["motivo"])
 
     def test_falha_ao_gravar_log_nao_libera(self):
+        shutil.rmtree(self.p.raiz / "logs")
         (self.p.raiz / "logs").write_text("arquivo no lugar da pasta", encoding="utf-8")
         self.assertEqual(self.p.escrita("registros/x", "p3-mercado"), 2)
         self.assertEqual(self.p.escrita("produtos/P3/x.md", "p3-mercado"), 0)
@@ -223,14 +166,17 @@ class TestTerminalEConectores(Base):
                     "cp registros/decisoes/DEC-001.json produtos/P3/copia.json",
                     "ls registros > produtos/P3/lista.txt", "echo ok 2>&1",
                     "python3 scripts/ok.py registros", "python3 -I -X utf8 scripts/ok.py",
-                    "python3 -m unittest discover testes", "head -3 dados/restritos/x",
+                    "python3 -m unittest discover testes", "ls dados", "head -3 registros/decisoes/d.json",
                     "find registros -name '*.json'", "sed -n 1,5p governanca/matriz-agentes.json",
                     "timeout 5 ls registros"):
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.p.bash(cmd)[0], 0, self.p.bash(cmd)[2])
 
     def test_escrita_em_area_protegida_por_terminal_e_recusada(self):
-        for cmd in ("echo x > registros/decisoes/DEC-002.json", "echo x >> dados/restritos/a",
+        for cmd in ("cat dados/restritos/r.txt", "head -3 dados/entrada/e.txt", "grep -r x logs",
+                    "cd dados/restritos && cat r.txt", "cp dados/restritos/r.txt produtos/P3/c.txt",
+                    "cat < dados/restritos/r.txt", "cat dados/rest*/r.txt", "sh -c 'cat dados/restritos/r.txt'",
+                    "echo x > registros/decisoes/DEC-002.json", "echo x >> dados/restritos/a",
                     "cp produtos/P3/a registros/b", "mv produtos/P3/a dados/restritos/",
                     "tee dados/restritos/z < /dev/null", "rm -rf registros", "rm registros/decisoes/*",
                     "sed -i s/a/b/ governanca/matriz-agentes.json", "touch ./Registros/x",
@@ -254,7 +200,10 @@ class TestTerminalEConectores(Base):
     def test_construcao_dinamica_vai_ao_humano(self):
         (self.p.raiz / "produtos/P3/x.py").write_text("print(1)", encoding="utf-8")
         (self.p.raiz / "produtos/P3/x.sh").write_text("echo 1", encoding="utf-8")
+        (self.p.raiz / "produtos/P3/x.awk").write_text("BEGIN{}", encoding="utf-8")
         for cmd in ("python3 produtos/P3/x.py", "bash produtos/P3/x.sh", "./produtos/P3/x.sh",
+                    "source produtos/P3/x.sh", ". produtos/P3/x.sh", "awk -f produtos/P3/x.awk",
+                    "exec bash produtos/P3/x.sh", "cd produtos/P3 && source x.sh",
                     "git reset --hard", "git clean -fd", "echo registros/decisoes/b12 | xargs touch",
                     "find registros -name '*.json' -delete", "find dados -exec rm {} ;",
                     "ls registros | parallel rm {}", 'eval "touch $(echo regis)tros/x"',
@@ -274,7 +223,7 @@ class TestTerminalEConectores(Base):
         ev = {"tool_name": "mcp__google_drive__create_file", "agent_type": "p5-juridico"}
         self.assertEqual(self.p.chama(ev)[0], 2)
         ev.pop("agent_type")
-        self.assertEqual(self.p.chama(ev)[0], 0)
+        self.assertEqual(self.p.chama(ev)[0], 2)          # sessão principal: lista vazia por padrão
 
 
 class TestConfiguracaoDoPacote(unittest.TestCase):
@@ -385,6 +334,13 @@ class TestConfiguracaoDoPacote(unittest.TestCase):
         for agente, dados in self.matriz.items():
             self.assertEqual(por_agente[agente][0], set(dados["skills"]), agente)
         self.assertIn("NÃO HOMOLOGADO", doc)
+
+    def test_documento_gov06_nao_declara_homologacao(self):
+        doc = " ".join((ROOT / "governanca/GOV-06-homologacao-seguranca.md").read_text(encoding="utf-8").split())
+        self.assertIn("NÃO HOMOLOGADO PARA DOCUMENTOS REAIS", doc)
+        self.assertIn("REJEIÇÃO do uso de documentos reais", doc)
+        for area in ("dados/restritos", "dados/entrada", "logs"):
+            self.assertIn(area, doc)
 
     def test_gitignore_nao_versiona_logs(self):
         texto = (ROOT / ".gitignore").read_text(encoding="utf-8")

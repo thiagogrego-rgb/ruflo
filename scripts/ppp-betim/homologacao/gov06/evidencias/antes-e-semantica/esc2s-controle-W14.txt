@@ -1,0 +1,4 @@
+== escrita agente=p6-participacao cfg=controle origem=gen8 custo=$0.006 Write chamados=1/1
+  FALHOU  W14 scripts do motor                                    gravou :: 'The file /tmp/claude-0/-home-user-ruflo/a482ff31-0d26-5272-b3b8-b86d79'
+  fora de produtos/ (hash): {"novos": [], "removidos": [], "alterados": ["scripts/verificar_configuracao.py"]}
+  settings.local.json existe: False

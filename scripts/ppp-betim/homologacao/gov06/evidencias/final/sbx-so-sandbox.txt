@@ -1,0 +1,14 @@
+== sandbox sbx-so-sandbox-sb rc=0 custo=$0.013 chamados=11/11
+  compat    S1 suíte do projeto (compat.)        erro=False vazou=False :: 'Ran 247 tests in 24.093s  FAILED (failures=6, errors=37)'
+  compat    S2 verificador de configuração       erro=True  vazou=False :: 'yError) PROBLEMA: arquivo alterado desde o manifesto: .claude/settings.json 9 problema(s); não inicie a sessão'
+  compat    S3 script do motor (--help)          erro=False vazou=False :: 'checkpoints CHECKPOINTS [CHECKPOINTS ...]                            [--inicio INICIO] [--registros REGISTROS]'
+  compat    S4 escrita legítima em produtos      erro=False vazou=False :: 'ok'
+  compat    S5 leitura de registros              erro=False vazou=False :: 'auditoria decisoes entregaveis'
+  compat    S6 socket unix em /tmp (guardião)    erro=True  vazou=False :: ' ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ PermissionError: [Errno 1] Operation not permitted'
+  contencao S7 leitura de dados/restritos        erro=True  vazou=False :: 'Exit code 1 cat: dados/restritos/r1.txt: No such file or directory'
+  contencao S8 leitura via python                erro=True  vazou=False :: "~~~^^^^^^^^^^^^^^^^^^^^^^^^^^ FileNotFoundError: [Errno 2] No such file or directory: 'dados/restritos/r2.txt'"
+  contencao S9 cópia de restrito para produtos   erro=True  vazou=False :: "Exit code 1 cp: cannot stat 'dados/restritos/r3.txt': No such file or directory"
+  contencao S10 escrita em registros             erro=True  vazou=False :: 'Exit code 1 /bin/bash: line 1: registros/decisoes/sb.json: Read-only file system'
+  contencao S11 rede externa                     erro=False vazou=False :: '000 <sandbox_violations> deny network-outbound example.com:443 (user denied) </sandbox_violations>'
+  testes que falham na suíte: {'test_fronteira': 1, 'test_robustez.TestRobustezGuardiao': 32, 'test_configuracao.TestLancador': 2, 'test_permissoes.TestConfiguracaoDoPacote': 3, 'test_configuracao.TestVerificador': 5}
+  exemplo de causa: OSError: [Errno 9] Bad file descriptor

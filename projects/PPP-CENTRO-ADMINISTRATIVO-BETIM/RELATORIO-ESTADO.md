@@ -17,6 +17,10 @@
   com escopo por agente), ferramenta `Skill` com matriz agente × skill e testes de
   runtime; sandbox de SO opcional. Controles de camada de ferramentas, NÃO isolamento
   de SO nem autenticação humana (`governanca/GOV-05-permissoes-e-skills.md`).
+- GOV-06: homologação de segurança dos controles de GOV-05: leitura por agente (áreas sigilosas), conectores
+  por lista de permissão, verificador de configuração + lançador de sessão (falha aberta de `settings.json`
+  inválido e de `disableAllHooks`), sandbox opcional testado. Parecer: aceite técnico CONDICIONADO e documentos
+  reais NÃO autorizados (`governanca/GOV-06-homologacao-seguranca.md`).
 - Decisões gerais e publicação: bloqueadas.
 - Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
   infraestrutura onde o agente não tenha privilégio administrativo

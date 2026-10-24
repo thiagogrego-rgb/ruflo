@@ -6,6 +6,11 @@ nada e não substitui a decisão humana nem o isolamento de sistema operacional.
 Aplicação ao ambiente destinado a dados reais: **não realizada**; depende da aprovação humana
 deste relatório (seção 9).
 
+> **Atualização GOV-06 (`GOV-06-homologacao-seguranca.md`)**: a leitura por agente deixou de ser livre (áreas
+> sigilosas `dados/entrada`, `dados/restritos`, `logs`), o guarda foi dividido em módulos, conectores da sessão
+> principal exigem lista de permissão e as sessões devem ser iniciadas por `scripts/iniciar_sessao.py`. Onde este
+> documento diz que a leitura "não é restringida", vale o GOV-06. O parecer de aceite está no GOV-06.
+
 Legenda de resultado: **PASSOU**, **FALHOU**, **NÃO EXECUTADO**.
 
 ## 1. Falhas tratadas

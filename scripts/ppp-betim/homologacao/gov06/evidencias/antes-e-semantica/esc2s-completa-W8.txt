@@ -1,0 +1,4 @@
+== escrita agente=p6-participacao cfg=completa origem=gen8 custo=$0.005 Write chamados=0/1
+  NAO-EXEC W8 settings.json
+  fora de produtos/ (hash): {"novos": [], "removidos": [], "alterados": []}
+  settings.local.json existe: False

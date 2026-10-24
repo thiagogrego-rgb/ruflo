@@ -1,0 +1,4 @@
+== conectores caso=controle rc=0 tools_init=['mcp__sintetico__listar_documentos', 'mcp__sintetico__publicar_documento']
+   mcp__sintetico__listar_documentos        erro=False :: 'DOCS-SINTETICOS: d1, d2'
+   mcp__sintetico__publicar_documento       erro=False :: 'PUBLICADO-SINTETICO'
+   EFEITO: arquivo de publicação existe: True

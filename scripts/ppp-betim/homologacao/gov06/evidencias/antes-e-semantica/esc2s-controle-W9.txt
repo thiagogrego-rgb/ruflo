@@ -1,0 +1,4 @@
+== escrita agente=p6-participacao cfg=controle origem=gen8 custo=$0.008 Write chamados=0/1
+  NAO-EXEC W9 o próprio guarda
+  fora de produtos/ (hash): {"novos": [], "removidos": [], "alterados": []}
+  settings.local.json existe: False

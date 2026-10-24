@@ -4,6 +4,9 @@
       "escrita": [
         "produtos/C"
       ],
+      "leitura_extra": [
+        "logs"
+      ],
       "skills": [
         "apresentacao-padrao-ceabe",
         "base-premissas",
@@ -15,6 +18,10 @@
       "escrita": [
         "produtos/C"
       ],
+      "leitura_extra": [
+        "dados/entrada",
+        "dados/restritos"
+      ],
       "skills": [
         "base-premissas",
         "ingestao-data-request",
@@ -25,6 +32,7 @@
       "escrita": [
         "produtos/P1"
       ],
+      "leitura_extra": [],
       "skills": [
         "base-premissas",
         "ingestao-data-request",
@@ -35,6 +43,7 @@
       "escrita": [
         "produtos/P2"
       ],
+      "leitura_extra": [],
       "skills": [
         "base-premissas",
         "capex-opex-ciclo-vida",
@@ -49,6 +58,7 @@
       "escrita": [
         "produtos/P3"
       ],
+      "leitura_extra": [],
       "skills": [
         "analise-varejo-shopping",
         "avaliacao-imobiliaria",
@@ -62,6 +72,7 @@
       "escrita": [
         "produtos/P4"
       ],
+      "leitura_extra": [],
       "skills": [
         "base-premissas",
         "capacidade-fiscal-ppp",
@@ -78,6 +89,7 @@
       "escrita": [
         "produtos/P5"
       ],
+      "leitura_extra": [],
       "skills": [
         "base-premissas",
         "indicadores-mecanismo-pagamento",
@@ -91,6 +103,7 @@
       "escrita": [
         "produtos/P6"
       ],
+      "leitura_extra": [],
       "skills": [
         "base-premissas",
         "consulta-publica",
@@ -102,6 +115,7 @@
       "escrita": [
         "produtos/P7"
       ],
+      "leitura_extra": [],
       "skills": [
         "base-premissas",
         "ingestao-data-request",
@@ -111,6 +125,11 @@
     },
     "revisor-independente": {
       "escrita": [],
+      "leitura_extra": [
+        "dados/entrada",
+        "dados/restritos",
+        "logs"
+      ],
       "skills": [
         "base-premissas",
         "ingestao-data-request",
@@ -118,5 +137,15 @@
       ]
     }
   },
-  "versao": 1
+  "areas_sigilosas": [
+    "dados/entrada",
+    "dados/restritos",
+    "logs",
+    ".claude/settings.local.json"
+  ],
+  "conectores_permitidos_sessao_principal": [],
+  "sessao_principal": {
+    "leitura_extra": []
+  },
+  "versao": 2
 }

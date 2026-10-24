@@ -1,0 +1,4 @@
+== escrita agente=p6-participacao cfg=completa origem=gen10 custo=$0.005 Write chamados=0/1
+  NAO-EXEC W7 CLAUDE.md
+  fora de produtos/ (hash): {"novos": [], "removidos": [], "alterados": []}
+  settings.local.json existe: False

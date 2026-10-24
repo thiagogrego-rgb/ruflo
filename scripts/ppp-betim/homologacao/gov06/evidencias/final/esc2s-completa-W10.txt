@@ -1,0 +1,4 @@
+== escrita agente=p6-participacao cfg=completa origem=gen10 custo=$0.004 Write chamados=0/1
+  NAO-EXEC W10 settings.local.json novo (disableAllHooks)
+  fora de produtos/ (hash): {"novos": [], "removidos": [], "alterados": []}
+  settings.local.json existe: False

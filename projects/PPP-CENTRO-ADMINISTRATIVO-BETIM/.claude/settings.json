@@ -26,11 +26,12 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Skill|Bash|mcp__.*",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|Skill|Bash|mcp__.*",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guarda_ferramentas.py\" || exit 2"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guarda_ferramentas.py\" || exit 2",
+            "timeout": 30
           }
         ]
       }

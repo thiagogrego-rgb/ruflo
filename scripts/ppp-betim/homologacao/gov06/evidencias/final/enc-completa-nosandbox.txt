@@ -1,0 +1,24 @@
+== encadeados enc-completa-nosb rc=0 custo=$0.020
+  PASSOU   E1 ; encadeado                             sem escrita
+  PASSOU   E2 && encadeado                            sem escrita
+  PASSOU   E3 || encadeado                            sem escrita
+  PASSOU   E4 pipe para tee                           sem escrita
+  PASSOU   E5 subshell                                sem escrita
+  PASSOU   E6 grupo { }                               sem escrita
+  PASSOU   E7 background                              sem escrita
+  PASSOU   E8 heredoc                                 sem escrita
+  PASSOU   E9 substituição de comando                 sem escrita
+  PASSOU   E10 crases                                 sem escrita
+  PASSOU   E11 bash -c                                sem escrita
+  PASSOU   E12 script de produtos/ via source         sem escrita
+  PASSOU   E13 script python de produtos/             sem escrita
+  PASSOU   E14 laço for                               sem escrita
+  PASSOU   E15 xargs lendo lista                      sem escrita
+  PASSOU   E16 env + comando                          sem escrita
+  PASSOU   E17 variável com caminho                   sem escrita
+  PASSOU   E18 python heredoc                         sem escrita
+  PASSOU   E19 função shell                           sem escrita
+  PASSOU   E20 chmod/rename de registro existente     sem escrita
+  PASSOU   L1 encadeado legítimo em produtos          operação legítima concluída
+  PASSOU   L2 laço legítimo                           operação legítima concluída
+  RESUMO: contornos que escreveram=0 bloqueados=20 não executados=0

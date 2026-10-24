@@ -219,6 +219,15 @@ def agentes_da_skill(consumidores):
         raise RuntimeError(f"Consumidores sem agente correspondente: {consumidores}")
     return agentes
 
+# Leitura (GOV-06, PROPOSTA sujeita a decisão do coordenador): tudo o que não é área sigilosa é
+# legível; as áreas sigilosas só por quem tem exceção explícita abaixo.
+AREAS_SIGILOSAS = ("dados/entrada", "dados/restritos", "logs", ".claude/settings.local.json")
+LEITURA_EXTRA = {
+    "controlador-dr": ["dados/entrada", "dados/restritos"],
+    "revisor-independente": ["dados/entrada", "dados/restritos", "logs"],
+    "c-orquestrador": ["logs"],
+}
+
 def matriz_agentes():
     """Matriz agente -> skills e áreas de escrita (fonte única; gera o JSON e o texto dos agentes)."""
     matriz = {}
@@ -227,6 +236,7 @@ def matriz_agentes():
         matriz[agente] = {
             "skills": sorted(s for s, v in SKILLS.items() if agente in agentes_da_skill(v[0])),
             "escrita": [] if agente == "revisor-independente" else [f"produtos/{area}"],
+            "leitura_extra": LEITURA_EXTRA.get(agente, []),
         }
     return matriz
 
@@ -247,10 +257,11 @@ SETTINGS = {
     },
     "hooks": {
         "PreToolUse": [{
-            "matcher": "Write|Edit|MultiEdit|NotebookEdit|Skill|Bash|mcp__.*",
+            "matcher": "Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|Skill|Bash|mcp__.*",
             "hooks": [{
                 "type": "command",
                 "command": 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/guarda_ferramentas.py" || exit 2',
+                "timeout": 30,       # o guarda se interrompe em 10 s; estourar o timeout do Claude Code é fail-ABERTO
             }],
         }],
     },
@@ -264,9 +275,12 @@ SANDBOX_RECOMENDADO = {
         "failIfUnavailable": True,
         "autoAllowBashIfSandboxed": False,
         "allowUnsandboxedCommands": False,
-        "filesystem": {"denyWrite": (
-            [f"./{a}" for a in AREAS_PROTEGIDAS]
-            + ["./CLAUDE.md", "./README.md", "./requirements.txt", "./requirements.lock", "./.gitignore"])},
+        "filesystem": {
+            "denyWrite": (
+                [f"./{a}" for a in AREAS_PROTEGIDAS]
+                + ["./CLAUDE.md", "./README.md", "./requirements.txt", "./requirements.lock", "./.gitignore"]),
+            "denyRead": [f"./{a}" for a in AREAS_SIGILOSAS],
+        },
     },
 }
 
@@ -356,8 +370,16 @@ FONTES = (
     "testes/test_robustez.py",
     "testes/test_assinatura_serie.py",
     ".claude/hooks/guarda_ferramentas.py",
+    ".claude/hooks/guarda_base.py",
+    ".claude/hooks/guarda_bash.py",
+    "testes/apoio_guarda.py",
+    "testes/test_leitura_revisao.py",
     "governanca/GOV-05-permissoes-e-skills.md",
+    "governanca/GOV-06-homologacao-seguranca.md",
     "testes/test_permissoes.py",
+    "scripts/verificar_configuracao.py",
+    "scripts/iniciar_sessao.py",
+    "testes/test_configuracao.py",
 )
 
 def origem_fontes():
@@ -380,6 +402,10 @@ def write(relative, content):
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
 
 def create_project():
+    criar_arquivos()
+    gravar_manifesto()
+
+def criar_arquivos():
     if ROOT.exists():
         raise RuntimeError(
             f"Diretório já existe: {ROOT}. "
@@ -542,7 +568,10 @@ Na ausência de autorização verificável, bloquear.
 """)
 
     write("governanca/matriz-agentes.json",
-          json.dumps({"versao": 1, "agentes": matriz_agentes()},
+          json.dumps({"versao": 2, "areas_sigilosas": list(AREAS_SIGILOSAS),
+                      "sessao_principal": {"leitura_extra": []},
+                      "conectores_permitidos_sessao_principal": [],
+                      "agentes": matriz_agentes()},
                      ensure_ascii=False, indent=2, sort_keys=True))
     write(".claude/settings.json", json.dumps(SETTINGS, ensure_ascii=False, indent=2))
     write("governanca/sandbox-recomendado.json",
@@ -814,6 +843,10 @@ class TestEstrutura(unittest.TestCase):
   com escopo por agente), ferramenta `Skill` com matriz agente × skill e testes de
   runtime; sandbox de SO opcional. Controles de camada de ferramentas, NÃO isolamento
   de SO nem autenticação humana (`governanca/GOV-05-permissoes-e-skills.md`).
+- GOV-06: homologação de segurança dos controles de GOV-05: leitura por agente (áreas sigilosas), conectores
+  por lista de permissão, verificador de configuração + lançador de sessão (falha aberta de `settings.json`
+  inválido e de `disableAllHooks`), sandbox opcional testado. Parecer: aceite técnico CONDICIONADO e documentos
+  reais NÃO autorizados (`governanca/GOV-06-homologacao-seguranca.md`).
 - Decisões gerais e publicação: bloqueadas.
 - Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
   infraestrutura onde o agente não tenha privilégio administrativo
@@ -827,6 +860,14 @@ class TestEstrutura(unittest.TestCase):
 
 Não utilizar dados reais até avaliação da segurança.
 """)
+
+def gravar_manifesto():
+    """Manifesto de integridade dos controles (feito por último: depende de todos os arquivos)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("verificar_configuracao", ROOT / "scripts/verificar_configuracao.py")
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    modulo.gerar(ROOT)
 
 def create_zip():
     target = Path.cwd() / (PROJECT + ".zip")
@@ -849,7 +890,7 @@ def verificar_zip(target):
         nomes = {n.split("/", 1)[1] for n in z.namelist() if "/" in n}
     esperados = ["README.md", "scripts/gerar_projeto.py",
                  "scripts/gerar_projeto.py.sha256", ".claude/settings.json",
-                 "governanca/matriz-agentes.json"]
+                 "governanca/matriz-agentes.json", "governanca/manifesto-controles.json"]
     esperados += list(FONTES)
     esperados += [f".claude/agents/{a}.md" for a in AGENTS]
     esperados += [f".claude/skills/{s}/SKILL.md" for s in SKILLS]

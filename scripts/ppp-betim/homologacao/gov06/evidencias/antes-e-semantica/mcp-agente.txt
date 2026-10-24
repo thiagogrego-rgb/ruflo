@@ -1,0 +1,2 @@
+== conectores caso=agente rc=0 tools_init=[]
+   EFEITO: arquivo de publicação existe: False
