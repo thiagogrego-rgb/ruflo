@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ppp-betim:schema:aprovacao-premissa:1",
+  "title": "Aprovação assinada de versão de premissa",
+  "type": "object",
+  "required": ["payload", "assinatura"],
+  "additionalProperties": false,
+  "properties": {
+    "assinatura": {"type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "formato", "premissa_id", "versao", "sha256_versao",
+                   "aprovador_id", "emitida_em", "decisao"],
+      "properties": {
+        "tipo": {"const": "aprovacao-premissa"},
+        "formato": {"const": 1},
+        "premissa_id": {"type": "string", "pattern": "^PREM-[0-9]{3,6}$"},
+        "versao": {"type": "integer", "minimum": 1},
+        "sha256_versao": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "aprovador_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$"},
+        "emitida_em": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2})$"},
+        "decisao": {"const": "APROVADA"}
+      }
+    }
+  }
+}

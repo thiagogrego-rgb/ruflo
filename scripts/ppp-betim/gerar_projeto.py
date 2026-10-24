@@ -247,6 +247,39 @@ Registrar testes executados e evidências.
 Iniciar inspecionando o ambiente e produzindo inventário.
 """
 
+# Arquivos mantidos como fontes reais (não embutidos em strings) e copiados
+# byte a byte. No repositório, a origem é `pacote/` ao lado do gerador; na cópia
+# distribuída em `scripts/`, é a raiz do próprio pacote.
+FONTES = (
+    "requirements.txt",
+    "governanca/GOV-01-02-fronteira-de-confianca.md",
+    "governanca/aprovadores.json",
+    "governanca/schemas/premissa.schema.json",
+    "governanca/schemas/aprovacao.schema.json",
+    "governanca/schemas/aprovadores.schema.json",
+    "scripts/governanca.py",
+    "scripts/premissas_repositorio.py",
+    "scripts/aprovacao.py",
+    "scripts/assinar_aprovacao.py",
+    "testes/apoio.py",
+    "testes/test_premissas.py",
+    "testes/test_aprovacao.py",
+)
+
+def origem_fontes():
+    local = Path(__file__).resolve().parent
+    return local / "pacote" if (local / "pacote").is_dir() else local.parent
+
+def copiar_fontes():
+    base = origem_fontes()
+    faltantes = [f for f in FONTES if not (base / f).is_file()]
+    if faltantes:
+        raise RuntimeError(f"Fontes ausentes em {base}: {faltantes}")
+    for relativo in FONTES:
+        destino = ROOT / relativo
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_bytes((base / relativo).read_bytes())
+
 def write(relative, content):
     path = ROOT / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -300,7 +333,9 @@ Funções e agentes de análise.md` precisa ser colocado em `referencias/`.
 
 ## Como utilizar o pacote
 
-**Requisito para executar o gerador:** Python 3.11 ou superior.
+**Requisitos:** Python 3.11 ou superior e as dependências de
+`requirements.txt` (`python3 -m pip install -r requirements.txt`). Sem elas,
+o gerador não executa e a validação e a aprovação de premissas falham fechadas.
 
 ### Opção 1 — Recebi o ZIP
 
@@ -345,18 +380,17 @@ atesta a integridade da distribuição, não a homologação funcional.
 | Dezenove arquivos SKILL.md | Criados, não homologados |
 | Instruções do Claude Projects | Criadas como texto; sem integração automática |
 | Políticas fundamentais | Criadas como texto; sem bloqueio técnico |
-| Validador inicial de premissas | Criado; cobre campos obrigatórios, natureza e status, mas não o tipo de `versao` |
+| Validação de premissas (GOV-01) | JSON Schema aplicado; versões imutáveis com cadeia de hashes; testada com dados sintéticos |
+| Aprovação humana (GOV-02) | Assinatura Ed25519 verificada; registro de aprovadores vazio; proteção efetiva depende de controles externos |
 | Gerador em `scripts/gerar_projeto.py` | Cópia idêntica à fonte, com SHA-256 conferido nos testes |
-| Testes (4 estruturais + 6 de governança) | Executados e aprovados; condição para gerar o ZIP |
+| Testes (4 estruturais + 6 de governança + 22 de GOV-01/02) | Executados e aprovados; condição para gerar o ZIP |
 | Conteúdo do ZIP | Verificado pelo gerador após a criação |
 | Homologação funcional | Pendente |
 
-## Melhorias registradas para a próxima versão
+## Integridade de premissas e aprovação humana
 
-- Validar `versao` como inteiro positivo.
-- Utilizar efetivamente `governanca/schemas/premissa.schema.json` no
-  validador, em vez de manter dois mecanismos de validação potencialmente
-  divergentes.
+Ver `governanca/GOV-01-02-fronteira-de-confianca.md`: regras implementadas,
+fronteira de confiança, permissões necessárias e riscos residuais.
 """)
     write("00-LEIA-ME-PRIMEIRO.md", """# Guia de implantação
 
@@ -382,6 +416,10 @@ REJEITADA, SUBSTITUIDA.
 
 Uma hipótese aprovada para cenário continua sendo hipótese.
 Aprovação exige mecanismo humano independente da IA.
+
+Implementação atual (GOV-01/GOV-02): o único status registrável é PROPOSTA;
+APROVADA decorre de aprovação humana assinada e verificada. Os demais estados
+ainda não possuem evento próprio. Ver `GOV-01-02-fronteira-de-confianca.md`.
 """)
     write("governanca/politica-sigilo.md", """# Sigilo
 PUBLICO: divulgado oficialmente.
@@ -561,63 +599,7 @@ Informar fontes, versões e decisões ainda pendentes.
           "# Agentes\n\n" +
           "\n".join(f"- `{k}` — {v[0]}" for k,v in AGENTS.items()))
 
-    write("governanca/schemas/premissa.schema.json",
-          json.dumps({
-              "$schema":"https://json-schema.org/draft/2020-12/schema",
-              "type":"object",
-              "required":["id","versao","produto","natureza",
-                          "unidade","status"],
-              "properties":{
-                  "id":{"type":"string"},
-                  "versao":{"type":"integer","minimum":1},
-                  "produto":{"type":"string"},
-                  "natureza":{"enum":["OBSERVADO","CALCULADO","HIPOTESE"]},
-                  "unidade":{"type":"string","minLength":1},
-                  "status":{"enum":["PROPOSTA","EM_VERIFICACAO",
-                     "VERIFICADA","APROVADA","REJEITADA","SUBSTITUIDA"]},
-                  "fonte_id":{"type":["string","null"]},
-                  "justificativa_hipotese":{"type":["string","null"]}
-              },
-              "additionalProperties":True
-          }, indent=2, ensure_ascii=False))
-
-    write("scripts/governanca.py", '''"""Validações iniciais. Aprovação humana permanece bloqueada."""
-import json
-from pathlib import Path
-
-def validar_premissa(p):
-    obrigatorios = ("id","versao","produto","natureza",
-                    "unidade","status")
-    faltantes = [x for x in obrigatorios if x not in p]
-    if faltantes:
-        raise ValueError(f"Campos ausentes: {faltantes}")
-    if not p["unidade"]:
-        raise ValueError("Unidade ausente")
-    if p["natureza"] not in ("OBSERVADO","CALCULADO","HIPOTESE"):
-        raise ValueError("Natureza inválida")
-    if p["status"] not in ("PROPOSTA","EM_VERIFICACAO",
-                          "VERIFICADA","APROVADA",
-                          "REJEITADA","SUBSTITUIDA"):
-        raise ValueError("Status inválido")
-    if p["natureza"] == "HIPOTESE":
-        if not p.get("justificativa_hipotese"):
-            raise ValueError("Hipótese sem justificativa")
-    elif not p.get("fonte_id"):
-        raise ValueError("Fonte obrigatória")
-    if p["status"] == "APROVADA":
-        raise PermissionError("Aprovação humana não configurada")
-    return True
-
-def aprovar_decisao(*args, **kwargs):
-    raise PermissionError(
-        "Mecanismo externo de autorização não configurado"
-    )
-
-def autorizar_publicacao(*args, **kwargs):
-    raise PermissionError(
-        "Publicação bloqueada até autorização humana verificável"
-    )
-''')
+    copiar_fontes()
 
     write("testes/test_governanca.py", '''import sys
 import unittest
@@ -685,11 +667,14 @@ class TestEstrutura(unittest.TestCase):
 
 - Agentes: arquivos gerados, não homologados no Claude.
 - Skills: instruções metodológicas geradas, sem scripts específicos.
-- Governança: validador mínimo com bloqueio conservador.
-- Schemas: primeiro schema de premissas.
-- Aprovações: bloqueadas até integração humana confiável.
-- Proteção de diretórios: ainda depende do sistema operacional.
-- Testes: verificações estruturais e casos básicos.
+- GOV-01: premissas validadas por JSON Schema, versionadas em armazenamento
+  append-only com cadeia de hashes; testado com dados sintéticos.
+- GOV-02: aprovação de premissas por assinatura Ed25519 de aprovador humano
+  registrado; registro distribuído vazio (nenhuma aprovação é aceita).
+- Decisões gerais e publicação: bloqueadas.
+- Proteção efetiva: depende dos controles externos descritos em
+  `governanca/GOV-01-02-fronteira-de-confianca.md` (não configurados).
+- Testes: estruturais, governança inicial, GOV-01 e GOV-02.
 - Fonte original DR e demais insumos: pendentes de importação.
 - Integração ao Projects: pendente.
 
@@ -717,6 +702,7 @@ def verificar_zip(target):
         nomes = {n.split("/", 1)[1] for n in z.namelist() if "/" in n}
     esperados = ["README.md", "scripts/gerar_projeto.py",
                  "scripts/gerar_projeto.py.sha256"]
+    esperados += list(FONTES)
     esperados += [f".claude/agents/{a}.md" for a in AGENTS]
     esperados += [f".claude/skills/{s}/SKILL.md" for s in SKILLS]
     faltantes = [x for x in esperados if x not in nomes]
@@ -731,6 +717,11 @@ def verificar_zip(target):
 if __name__ == "__main__":
     if sys.version_info < (3, 11):
         raise SystemExit("Python 3.11+ necessário")
+    try:
+        import jsonschema, cryptography  # noqa: F401
+    except ImportError as e:
+        raise SystemExit(f"Dependência ausente ({e.name}). "
+                         "Instale: python3 -m pip install -r requirements.txt")
     try:
         create_project()
         suite = unittest.defaultTestLoader.discover(

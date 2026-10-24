@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ppp-betim:schema:aprovadores:1",
+  "title": "Registro de aprovadores humanos (âncora de confiança)",
+  "type": "object",
+  "required": ["formato", "aprovadores"],
+  "additionalProperties": false,
+  "properties": {
+    "formato": {"const": 1},
+    "aprovadores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "nome", "tipo", "papeis", "produtos",
+                     "chave_publica_ed25519", "ativo"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$"},
+          "nome": {"type": "string", "minLength": 1},
+          "tipo": {"const": "humano"},
+          "papeis": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"enum": ["aprovador-premissas"]}
+          },
+          "produtos": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"enum": ["C", "P1", "P2", "P3", "P4", "P5", "P6", "P7"]}
+          },
+          "chave_publica_ed25519": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "ativo": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

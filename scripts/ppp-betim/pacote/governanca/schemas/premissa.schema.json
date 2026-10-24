@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ppp-betim:schema:premissa:2",
+  "title": "Premissa proposta",
+  "description": "Conteúdo de uma versão de premissa. O status registrável é apenas PROPOSTA; APROVADA decorre de aprovação humana assinada.",
+  "type": "object",
+  "required": ["id", "versao", "produto", "natureza", "unidade", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "pattern": "^PREM-[0-9]{3,6}$"},
+    "versao": {"type": "integer", "minimum": 1},
+    "produto": {"enum": ["C", "P1", "P2", "P3", "P4", "P5", "P6", "P7"]},
+    "natureza": {"enum": ["OBSERVADO", "CALCULADO", "HIPOTESE"]},
+    "unidade": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "status": {"const": "PROPOSTA"},
+    "descricao": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "valor": {"type": ["number", "string"]},
+    "data_base": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12][0-9]|3[01]))?$"
+    },
+    "fonte_id": {"type": ["string", "null"], "pattern": "^FONTE-[0-9]{3,6}$"},
+    "justificativa_hipotese": {"type": ["string", "null"], "minLength": 1, "pattern": "\\S"},
+    "dependencias": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^PREM-[0-9]{3,6}$"}
+    }
+  },
+  "if": {"required": ["natureza"], "properties": {"natureza": {"const": "HIPOTESE"}}},
+  "then": {
+    "required": ["justificativa_hipotese"],
+    "properties": {"justificativa_hipotese": {"type": "string"}}
+  },
+  "else": {
+    "required": ["fonte_id"],
+    "properties": {"fonte_id": {"type": "string"}}
+  }
+}

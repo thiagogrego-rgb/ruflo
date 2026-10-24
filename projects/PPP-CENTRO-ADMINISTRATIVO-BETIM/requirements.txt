@@ -1,0 +1,4 @@
+# GOV-01/GOV-02: validação por JSON Schema e assinaturas Ed25519.
+# Sem estas dependências, validação e aprovação falham fechadas.
+jsonschema>=4.18,<5
+cryptography>=42

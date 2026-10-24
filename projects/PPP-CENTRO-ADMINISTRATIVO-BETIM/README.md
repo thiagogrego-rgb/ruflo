@@ -19,7 +19,9 @@ Funções e agentes de análise.md` precisa ser colocado em `referencias/`.
 
 ## Como utilizar o pacote
 
-**Requisito para executar o gerador:** Python 3.11 ou superior.
+**Requisitos:** Python 3.11 ou superior e as dependências de
+`requirements.txt` (`python3 -m pip install -r requirements.txt`). Sem elas,
+o gerador não executa e a validação e a aprovação de premissas falham fechadas.
 
 ### Opção 1 — Recebi o ZIP
 
@@ -64,15 +66,14 @@ atesta a integridade da distribuição, não a homologação funcional.
 | Dezenove arquivos SKILL.md | Criados, não homologados |
 | Instruções do Claude Projects | Criadas como texto; sem integração automática |
 | Políticas fundamentais | Criadas como texto; sem bloqueio técnico |
-| Validador inicial de premissas | Criado; cobre campos obrigatórios, natureza e status, mas não o tipo de `versao` |
+| Validação de premissas (GOV-01) | JSON Schema aplicado; versões imutáveis com cadeia de hashes; testada com dados sintéticos |
+| Aprovação humana (GOV-02) | Assinatura Ed25519 verificada; registro de aprovadores vazio; proteção efetiva depende de controles externos |
 | Gerador em `scripts/gerar_projeto.py` | Cópia idêntica à fonte, com SHA-256 conferido nos testes |
-| Testes (4 estruturais + 6 de governança) | Executados e aprovados; condição para gerar o ZIP |
+| Testes (4 estruturais + 6 de governança + 22 de GOV-01/02) | Executados e aprovados; condição para gerar o ZIP |
 | Conteúdo do ZIP | Verificado pelo gerador após a criação |
 | Homologação funcional | Pendente |
 
-## Melhorias registradas para a próxima versão
+## Integridade de premissas e aprovação humana
 
-- Validar `versao` como inteiro positivo.
-- Utilizar efetivamente `governanca/schemas/premissa.schema.json` no
-  validador, em vez de manter dois mecanismos de validação potencialmente
-  divergentes.
+Ver `governanca/GOV-01-02-fronteira-de-confianca.md`: regras implementadas,
+fronteira de confiança, permissões necessárias e riscos residuais.
