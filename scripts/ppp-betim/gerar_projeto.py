@@ -3,6 +3,7 @@ import json
 import re
 import sys
 import zipfile
+import hashlib
 import unittest
 import tempfile
 import shutil
@@ -258,6 +259,12 @@ def create_project():
             "Nada foi sobrescrito."
         )
     ROOT.mkdir(parents=True)
+    # Cópia byte a byte do gerador em execução; a origem não é alterada.
+    gerador = Path(__file__).resolve().read_bytes()
+    (ROOT / "scripts").mkdir()
+    (ROOT / "scripts/gerar_projeto.py").write_bytes(gerador)
+    write("scripts/gerar_projeto.py.sha256",
+          f"{hashlib.sha256(gerador).hexdigest()}  gerar_projeto.py")
     write("CLAUDE.md", POLICY + """
 # Trabalho por frentes
 C: coordenação; P1: diagnóstico; P2: engenharia; P3: mercado;
@@ -276,41 +283,58 @@ P4: econômico-financeiro; P5: jurídico; P6: consulta; P7: licitação.
 
 Pacote inicial para Claude Code + Claude Projects.
 
-> **Estado do pacote:** bootstrap estrutural, não homologado para operação
-> com dados reais. Os nove testes verificam comportamentos iniciais, mas não
-> demonstram segurança integral, integração ao Claude Projects, funcionamento
-> dos agentes ou conformidade completa dos registros de governança.
+## Estado do pacote
+
+Este pacote é um bootstrap estrutural, não um ambiente homologado.
+
+Os testes iniciais não demonstram segurança integral, funcionamento dos
+agentes ou integração automática ao Claude Projects.
+
+A utilização de dados reais restritos permanece condicionada à
+implementação e homologação dos controles de governança.
 
 Comece pelo `00-LEIA-ME-PRIMEIRO.md`.
 
 O documento original `PPP Centro Administrativo de Betim —
 Funções e agentes de análise.md` precisa ser colocado em `referencias/`.
 
-## Como executar
+## Como utilizar o pacote
 
-Requisito: Python 3.11 ou superior.
+**Requisito para executar o gerador:** Python 3.11 ou superior.
 
-Versão de referência: `scripts/ppp-betim/gerar_projeto.py` no repositório.
-Não utilize versões copiadas de conversas anteriores.
+### Opção 1 — Recebi o ZIP
 
-Abra o terminal na pasta onde deseja guardar o projeto e rode:
+Extraia `{PROJECT}.zip` em uma pasta de sua escolha.
 
+Abra o diretório extraído no Claude Code e leia `00-LEIA-ME-PRIMEIRO.md`.
+
+O projeto já contém sua estrutura inicial, agentes e skills.
+**Não é necessário executar novamente o gerador.**
+
+O arquivo `scripts/gerar_projeto.py` acompanha o pacote para referência,
+auditoria e reprodução em ambiente separado. Seu SHA-256 está registrado
+em `scripts/gerar_projeto.py.sha256` e é conferido pelos testes.
+
+### Opção 2 — Estou trabalhando no repositório
+
+A fonte oficial é `scripts/ppp-betim/gerar_projeto.py` no repositório.
+O gerador cria o projeto no diretório atual; execute-o a partir de uma
+pasta vazia fora do repositório:
+
+```bash
+mkdir ppp-betim && cd ppp-betim
+python3 /caminho/do/repositorio/scripts/ppp-betim/gerar_projeto.py
 ```
-python3 caminho/para/gerar_projeto.py        # Linux/macOS
-py caminho\\para\\gerar_projeto.py           # Windows
-```
 
-Se a pasta `{PROJECT}/` já existir, o script é interrompido sem
-sobrescrever nada. Renomeie ou remova a pasta antes de rodar de novo.
+No Windows, utilize `py` em vez de `python3`.
 
-Se a execução terminar com sucesso, estes dois itens aparecem no mesmo diretório:
+Se o diretório de destino já existir, o gerador interrompe a execução sem
+sobrescrever arquivos.
 
-- `{PROJECT}/`: diretório de trabalho.
-- `{PROJECT}.zip`: pacote compactado, gerado somente se todos os testes passarem.
-
-O instalador é intencionalmente conservador: não cria aprovações fictícias,
-não habilita publicação e não acessa a rede, o Google Drive nem
-informações restritas.
+O ZIP só será produzido depois que todos os testes obrigatórios passarem.
+Em seguida, o gerador confere o conteúdo do ZIP (gerador, README, dez
+agentes e 19 skills) e o remove se algum item faltar. Essa verificação
+atesta a integridade da distribuição, não a homologação funcional.
 
 ## O que ele efetivamente entrega
 
@@ -322,7 +346,9 @@ informações restritas.
 | Instruções do Claude Projects | Criadas como texto; sem integração automática |
 | Políticas fundamentais | Criadas como texto; sem bloqueio técnico |
 | Validador inicial de premissas | Criado; cobre campos obrigatórios, natureza e status, mas não o tipo de `versao` |
-| Testes (3 estruturais + 6 de governança) | Executados e aprovados; condição para gerar o ZIP |
+| Gerador em `scripts/gerar_projeto.py` | Cópia idêntica à fonte, com SHA-256 conferido nos testes |
+| Testes (4 estruturais + 6 de governança) | Executados e aprovados; condição para gerar o ZIP |
+| Conteúdo do ZIP | Verificado pelo gerador após a criação |
 | Homologação funcional | Pendente |
 
 ## Melhorias registradas para a próxima versão
@@ -629,7 +655,8 @@ class TestGovernanca(unittest.TestCase):
             autorizar_publicacao()
 ''')
 
-    write("testes/test_estrutura.py", '''import unittest
+    write("testes/test_estrutura.py", '''import hashlib
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -647,6 +674,11 @@ class TestEstrutura(unittest.TestCase):
                             str(file))
             self.assertIn("description:", text)
             self.assertIn("## O — Objetivo", text)
+    def test_gerador_incluido(self):
+        gerador = (ROOT/"scripts/gerar_projeto.py").read_bytes()
+        registro = (ROOT/"scripts/gerar_projeto.py.sha256").read_text(
+            encoding="utf-8").split()[0]
+        self.assertEqual(hashlib.sha256(gerador).hexdigest(), registro)
 ''')
 
     write("RELATORIO-ESTADO.md", """# Estado do pacote
@@ -670,10 +702,31 @@ def create_zip():
         for file in ROOT.rglob("*"):
             if file.is_file() and "__pycache__" not in file.parts:
                 z.write(file, file.relative_to(ROOT.parent))
+    try:
+        verificar_zip(target)
+    except Exception:
+        target.unlink()
+        raise
+    return target
+
+def verificar_zip(target):
+    """Confere integridade e conteúdo mínimo da distribuição."""
     with zipfile.ZipFile(target) as z:
         if z.testzip() is not None:
             raise RuntimeError("Falha de integridade ZIP")
-    return target
+        nomes = {n.split("/", 1)[1] for n in z.namelist() if "/" in n}
+    esperados = ["README.md", "scripts/gerar_projeto.py",
+                 "scripts/gerar_projeto.py.sha256"]
+    esperados += [f".claude/agents/{a}.md" for a in AGENTS]
+    esperados += [f".claude/skills/{s}/SKILL.md" for s in SKILLS]
+    faltantes = [x for x in esperados if x not in nomes]
+    if faltantes:
+        raise RuntimeError(f"ZIP incompleto: {faltantes}")
+    agentes = [n for n in nomes if re.fullmatch(r"\.claude/agents/[^/]+\.md", n)]
+    skills = [n for n in nomes if re.fullmatch(r"\.claude/skills/[^/]+/SKILL\.md", n)]
+    if (len(agentes), len(skills)) != (10, 19):
+        raise RuntimeError(
+            f"ZIP com {len(agentes)} agentes e {len(skills)} skills; esperado 10 e 19")
 
 if __name__ == "__main__":
     if sys.version_info < (3, 11):
@@ -689,6 +742,7 @@ if __name__ == "__main__":
         archive = create_zip()
         print("\nPROJETO:", ROOT)
         print("ZIP:", archive)
+        print("VERIFICAÇÃO DO ZIP: OK")
         print("TESTES INICIAIS: PASSARAM")
         print("HOMOLOGAÇÃO FUNCIONAL: PENDENTE")
     except Exception as e:

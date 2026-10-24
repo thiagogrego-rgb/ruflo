@@ -1,3 +1,4 @@
+import hashlib
 import unittest
 from pathlib import Path
 
@@ -16,3 +17,8 @@ class TestEstrutura(unittest.TestCase):
                             str(file))
             self.assertIn("description:", text)
             self.assertIn("## O — Objetivo", text)
+    def test_gerador_incluido(self):
+        gerador = (ROOT/"scripts/gerar_projeto.py").read_bytes()
+        registro = (ROOT/"scripts/gerar_projeto.py.sha256").read_text(
+            encoding="utf-8").split()[0]
+        self.assertEqual(hashlib.sha256(gerador).hexdigest(), registro)
