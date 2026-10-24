@@ -257,13 +257,19 @@ FONTES = (
     "governanca/schemas/premissa.schema.json",
     "governanca/schemas/aprovacao.schema.json",
     "governanca/schemas/aprovadores.schema.json",
+    "governanca/schemas/guardiao.schema.json",
+    "governanca/GOV-03-fronteira-efetiva.md",
     "scripts/governanca.py",
     "scripts/premissas_repositorio.py",
     "scripts/aprovacao.py",
     "scripts/assinar_aprovacao.py",
+    "scripts/ancora.py",
+    "scripts/guardiao.py",
+    "scripts/cliente_guardiao.py",
     "testes/apoio.py",
     "testes/test_premissas.py",
     "testes/test_aprovacao.py",
+    "testes/test_fronteira.py",
 )
 
 def origem_fontes():
@@ -383,14 +389,17 @@ atesta a integridade da distribuição, não a homologação funcional.
 | Validação de premissas (GOV-01) | JSON Schema aplicado; versões imutáveis com cadeia de hashes; testada com dados sintéticos |
 | Aprovação humana (GOV-02) | Assinatura Ed25519 verificada; registro de aprovadores vazio; proteção efetiva depende de controles externos |
 | Gerador em `scripts/gerar_projeto.py` | Cópia idêntica à fonte, com SHA-256 conferido nos testes |
-| Testes (4 estruturais + 6 de governança + 22 de GOV-01/02) | Executados e aprovados; condição para gerar o ZIP |
+| Fronteira de confiança (GOV-03) | Guardião, papel `ancoradores` e âncora implementados; validados só contra processos sintéticos sem privilégio; **não homologados** |
+| Testes (4 estruturais + 6 de governança + 22 de GOV-01/02 + 21 de GOV-03) | Executados e aprovados; condição para gerar o ZIP. Os 21 de GOV-03 exigem Linux e root e são pulados sem eles |
 | Conteúdo do ZIP | Verificado pelo gerador após a criação |
 | Homologação funcional | Pendente |
 
 ## Integridade de premissas e aprovação humana
 
-Ver `governanca/GOV-01-02-fronteira-de-confianca.md`: regras implementadas,
-fronteira de confiança, permissões necessárias e riscos residuais.
+Ver `governanca/GOV-01-02-fronteira-de-confianca.md` (regras, fronteira,
+permissões e riscos de GOV-01/02) e `governanca/GOV-03-fronteira-efetiva.md`
+(modelo de ameaças, guardião, papel `ancoradores`, âncora, resultados dos
+testes adversariais, riscos residuais e procedimento de implantação).
 """)
     write("00-LEIA-ME-PRIMEIRO.md", """# Guia de implantação
 
@@ -671,10 +680,16 @@ class TestEstrutura(unittest.TestCase):
   append-only com cadeia de hashes; testado com dados sintéticos.
 - GOV-02: aprovação de premissas por assinatura Ed25519 de aprovador humano
   registrado; registro distribuído vazio (nenhuma aprovação é aceita).
+- GOV-03: serviço guardião (único escritor do armazenamento, identidade do
+  proponente via kernel), papel `ancoradores` restrito a checkpoint e âncora de
+  checkpoints assinados; validado só contra processos sintéticos sem privilégio.
 - Decisões gerais e publicação: bloqueadas.
-- Proteção efetiva: depende dos controles externos descritos em
-  `governanca/GOV-01-02-fronteira-de-confianca.md` (não configurados).
-- Testes: estruturais, governança inicial, GOV-01 e GOV-02.
+- Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
+  infraestrutura onde o agente não tenha privilégio administrativo
+  (`governanca/GOV-03-fronteira-efetiva.md`, seção 10) — não realizada.
+- Testes: estruturais, governança inicial, GOV-01/02 e fronteira GOV-03
+  (estes últimos são PULADOS sem Linux e root, e nesse caso a fronteira
+  permanece não validada).
 - Fonte original DR e demais insumos: pendentes de importação.
 - Integração ao Projects: pendente.
 

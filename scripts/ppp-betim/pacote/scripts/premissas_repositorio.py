@@ -67,10 +67,12 @@ def gravar_exclusivo(destino, conteudo):
 
 
 class RepositorioPremissas:
-    def __init__(self, registros, registro_aprovadores=aprovacao.REGISTRO_PADRAO):
+    def __init__(self, registros, registro_aprovadores=aprovacao.REGISTRO_PADRAO,
+                 chave_raiz=None):
         self.premissas = Path(registros) / "premissas"
         self.fontes = Path(registros) / "fontes"
         self.registro_aprovadores = registro_aprovadores
+        self.chave_raiz = chave_raiz
 
     def _diretorio(self, premissa_id):
         if not isinstance(premissa_id, str) or not PADRAO_PREMISSA.fullmatch(premissa_id):
@@ -142,7 +144,7 @@ class RepositorioPremissas:
         return aprovacao.verificar(
             dados, premissa_id=premissa_id, versao=n, sha256_versao=hash_versao,
             proponente=envelope["proponente"], produto=envelope["premissa"]["produto"],
-            registro=self.registro_aprovadores)
+            registro=self.registro_aprovadores, chave_raiz=self.chave_raiz)
 
     def registrar_aprovacao(self, dados):
         """Verifica e arquiva uma aprovação assinada. Nunca substitui outra."""

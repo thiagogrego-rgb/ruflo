@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ppp-betim:schema:guardiao:1",
+  "title": "Configuração do serviço guardião (GOV-03)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formato", "registros", "aprovadores", "chave_raiz_governanca",
+               "chave_privada_guardiao", "socket", "proponentes"],
+  "properties": {
+    "formato": {"const": 1},
+    "registros": {"type": "string", "pattern": "^/"},
+    "aprovadores": {"type": "string", "pattern": "^/"},
+    "chave_raiz_governanca": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "chave_privada_guardiao": {"type": "string", "pattern": "^/"},
+    "socket": {"type": "string", "pattern": "^/", "maxLength": 100},
+    "ancoradores": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "integer", "minimum": 1}
+    },
+    "proponentes": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[1-9][0-9]{0,9}$"},
+      "additionalProperties": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$"}
+    }
+  }
+}

@@ -40,10 +40,31 @@ def assinar(payload, chave_privada):
     return {"payload": payload, "assinatura": base64.b64encode(assinatura).decode("ascii")}
 
 
-def carregar_aprovadores(caminho=REGISTRO_PADRAO):
+def verificar_assinatura(chave_publica_hex, assinatura_b64, mensagem):
+    """True somente se a assinatura Ed25519 conferir. Levanta AutorizacaoIndisponivel."""
+    chave = _chave_publica(chave_publica_hex)
+    try:
+        from cryptography.exceptions import InvalidSignature
+    except ImportError as erro:
+        raise AutorizacaoIndisponivel("Dependência 'cryptography' ausente") from erro
+    try:
+        chave.verify(base64.b64decode(assinatura_b64, validate=True), mensagem)
+    except (InvalidSignature, binascii.Error, ValueError):
+        return False
+    return True
+
+
+def carregar_aprovadores(caminho=REGISTRO_PADRAO, chave_raiz=None):
+    """Com `chave_raiz` (hex), exige `<caminho>.sig` assinado pela raiz de governança."""
     try:
         validador = carregar_validador("aprovadores.schema.json")
-        dados = json.loads(Path(caminho).read_text(encoding="utf-8"))
+        bruto = Path(caminho).read_bytes()
+        if chave_raiz is not None:
+            assinatura = Path(f"{caminho}.sig").read_text(encoding="ascii").strip()
+            if not verificar_assinatura(chave_raiz, assinatura, bruto):
+                raise AutorizacaoIndisponivel(
+                    "Registro de aprovadores sem assinatura válida da raiz de governança")
+        dados = json.loads(bruto)
     except (ValidacaoIndisponivel, OSError, ValueError) as erro:
         raise AutorizacaoIndisponivel(f"Registro de aprovadores indisponível: {erro}") from erro
     erros = erros_schema(validador, dados)
@@ -66,7 +87,7 @@ def _chave_publica(hex_chave):
 
 
 def verificar(aprovacao, *, premissa_id, versao, sha256_versao, proponente, produto,
-              registro=REGISTRO_PADRAO):
+              registro=REGISTRO_PADRAO, chave_raiz=None):
     """Retorna o aprovador se a aprovação for válida; caso contrário, levanta PermissionError."""
     try:
         erros = erros_schema(carregar_validador("aprovacao.schema.json"), aprovacao)
@@ -77,19 +98,14 @@ def verificar(aprovacao, *, premissa_id, versao, sha256_versao, proponente, prod
     p = aprovacao["payload"]
     if (p["premissa_id"], p["versao"], p["sha256_versao"]) != (premissa_id, versao, sha256_versao):
         raise AprovacaoInvalida("Aprovação vinculada a outra premissa, versão ou conteúdo")
-    aprovador = carregar_aprovadores(registro).get(p["aprovador_id"])
+    aprovador = carregar_aprovadores(registro, chave_raiz).get(p["aprovador_id"])
     if aprovador is None:
         raise AprovacaoInvalida(f"Identidade não autorizada: {p['aprovador_id']}")
     if PAPEL_PREMISSAS not in aprovador["papeis"] or produto not in aprovador["produtos"]:
         raise AprovacaoInvalida(f"{p['aprovador_id']} não pode aprovar premissas de {produto}")
     if p["aprovador_id"] == proponente:
         raise AprovacaoInvalida("Segregação de funções: o proponente não pode aprovar")
-    chave = _chave_publica(aprovador["chave_publica_ed25519"])
-    try:
-        from cryptography.exceptions import InvalidSignature
-        chave.verify(base64.b64decode(aprovacao["assinatura"], validate=True), canonico(p))
-    except ImportError as erro:
-        raise AutorizacaoIndisponivel("Dependência 'cryptography' ausente") from erro
-    except (InvalidSignature, binascii.Error) as erro:
-        raise AprovacaoInvalida("Assinatura inválida para o aprovador declarado") from erro
+    if not verificar_assinatura(aprovador["chave_publica_ed25519"],
+                                aprovacao["assinatura"], canonico(p)):
+        raise AprovacaoInvalida("Assinatura inválida para o aprovador declarado")
     return aprovador

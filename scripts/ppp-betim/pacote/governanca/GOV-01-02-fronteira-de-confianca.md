@@ -3,6 +3,10 @@
 **Estado:** implementado e testado com dados sintéticos. **Não homologado.**
 A proteção só é efetiva com os controles externos da seção 4 configurados.
 
+> **Atualização (GOV-03):** o serviço guardião, o papel `ancoradores`, a âncora de
+> checkpoints e a revisão dos riscos R1–R5 estão em `GOV-03-fronteira-efetiva.md`.
+> Este documento descreve a base (GOV-01/02) e permanece válido.
+
 ## 1. Componentes
 
 | Arquivo | Função |

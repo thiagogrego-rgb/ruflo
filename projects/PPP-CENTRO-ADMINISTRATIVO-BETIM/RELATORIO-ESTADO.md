@@ -6,10 +6,16 @@
   append-only com cadeia de hashes; testado com dados sintéticos.
 - GOV-02: aprovação de premissas por assinatura Ed25519 de aprovador humano
   registrado; registro distribuído vazio (nenhuma aprovação é aceita).
+- GOV-03: serviço guardião (único escritor do armazenamento, identidade do
+  proponente via kernel), papel `ancoradores` restrito a checkpoint e âncora de
+  checkpoints assinados; validado só contra processos sintéticos sem privilégio.
 - Decisões gerais e publicação: bloqueadas.
-- Proteção efetiva: depende dos controles externos descritos em
-  `governanca/GOV-01-02-fronteira-de-confianca.md` (não configurados).
-- Testes: estruturais, governança inicial, GOV-01 e GOV-02.
+- Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
+  infraestrutura onde o agente não tenha privilégio administrativo
+  (`governanca/GOV-03-fronteira-efetiva.md`, seção 10) — não realizada.
+- Testes: estruturais, governança inicial, GOV-01/02 e fronteira GOV-03
+  (estes últimos são PULADOS sem Linux e root, e nesse caso a fronteira
+  permanece não validada).
 - Fonte original DR e demais insumos: pendentes de importação.
 - Integração ao Projects: pendente.
 
