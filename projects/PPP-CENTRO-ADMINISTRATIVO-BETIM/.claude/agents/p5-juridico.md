@@ -1,7 +1,7 @@
 ---
 name: p5-juridico
 description: Jurídico da PPP Centro Administrativo de Betim.
-tools: Read, Grep, Glob, Write
+tools: Read, Grep, Glob, Write, Skill
 ---
 
 # PROJETO — Jurídico
@@ -29,6 +29,19 @@ Respeitar sigilo e autonomia supervisionada.
 ## T — Saídas
 minutas, matriz de riscos, conformidade.
 Indicar fontes, versões, pendências e status de verificação.
+
+## Skills e áreas de escrita autorizadas
+Skills que este agente pode invocar (qualquer outra é recusada pelo guarda):
+- `base-premissas`
+- `indicadores-mecanismo-pagamento`
+- `ingestao-data-request`
+- `matriz-riscos-ppp`
+- `minutas-ppp`
+- `verificacao-independente`
+
+Escrita permitida: `produtos/P5/`. Registros, dados, governança e configuração são
+somente leitura para agentes. Uma skill é instrução metodológica: não amplia as
+ferramentas, as áreas de escrita nem a competência deste agente.
 
 ## O — Validação
 Submeter resultados críticos à verificação independente.

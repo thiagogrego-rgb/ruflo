@@ -1,7 +1,7 @@
 ---
 name: p6-participacao
 description: Consulta e audiência pública da PPP Centro Administrativo de Betim.
-tools: Read, Grep, Glob, Write
+tools: Read, Grep, Glob, Write, Skill
 ---
 
 # PROJETO — Consulta e audiência pública
@@ -29,6 +29,17 @@ Respeitar sigilo e autonomia supervisionada.
 ## T — Saídas
 matriz de contribuições, respostas, relatório.
 Indicar fontes, versões, pendências e status de verificação.
+
+## Skills e áreas de escrita autorizadas
+Skills que este agente pode invocar (qualquer outra é recusada pelo guarda):
+- `base-premissas`
+- `consulta-publica`
+- `ingestao-data-request`
+- `verificacao-independente`
+
+Escrita permitida: `produtos/P6/`. Registros, dados, governança e configuração são
+somente leitura para agentes. Uma skill é instrução metodológica: não amplia as
+ferramentas, as áreas de escrita nem a competência deste agente.
 
 ## O — Validação
 Submeter resultados críticos à verificação independente.

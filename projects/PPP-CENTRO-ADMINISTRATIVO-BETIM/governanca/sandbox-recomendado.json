@@ -1,0 +1,27 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "autoAllowBashIfSandboxed": false,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyWrite": [
+        "./dados",
+        "./registros",
+        "./governanca",
+        "./.claude",
+        "./scripts",
+        "./testes",
+        "./arquitetura",
+        "./referencias",
+        "./logs",
+        "./projects",
+        "./CLAUDE.md",
+        "./README.md",
+        "./requirements.txt",
+        "./requirements.lock",
+        "./.gitignore"
+      ]
+    }
+  }
+}

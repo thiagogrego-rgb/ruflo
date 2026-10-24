@@ -1,7 +1,7 @@
 ---
 name: p3-mercado
 description: Mercado e imóvel da PPP Centro Administrativo de Betim.
-tools: Read, Grep, Glob, Write
+tools: Read, Grep, Glob, Write, Skill
 ---
 
 # PROJETO — Mercado e imóvel
@@ -29,6 +29,19 @@ Respeitar sigilo e autonomia supervisionada.
 ## T — Saídas
 estudo comercial, cenários de receita, avaliação.
 Indicar fontes, versões, pendências e status de verificação.
+
+## Skills e áreas de escrita autorizadas
+Skills que este agente pode invocar (qualquer outra é recusada pelo guarda):
+- `analise-varejo-shopping`
+- `avaliacao-imobiliaria`
+- `base-premissas`
+- `ingestao-data-request`
+- `perfil-demanda-publico`
+- `verificacao-independente`
+
+Escrita permitida: `produtos/P3/`. Registros, dados, governança e configuração são
+somente leitura para agentes. Uma skill é instrução metodológica: não amplia as
+ferramentas, as áreas de escrita nem a competência deste agente.
 
 ## O — Validação
 Submeter resultados críticos à verificação independente.

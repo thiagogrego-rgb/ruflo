@@ -13,6 +13,10 @@
   assinada, lock de dependências com hashes e verificação do ambiente, limites de
   requisição/frequência/crescimento, verificador independente de checkpoints e
   recuperação após interrupção; validado só contra processos sintéticos sem privilégio.
+- GOV-05: permissões de escrita (deny em `.claude/settings.json` + guarda PreToolUse
+  com escopo por agente), ferramenta `Skill` com matriz agente × skill e testes de
+  runtime; sandbox de SO opcional. Controles de camada de ferramentas, NÃO isolamento
+  de SO nem autenticação humana (`governanca/GOV-05-permissoes-e-skills.md`).
 - Decisões gerais e publicação: bloqueadas.
 - Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
   infraestrutura onde o agente não tenha privilégio administrativo

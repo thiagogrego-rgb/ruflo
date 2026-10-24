@@ -1,0 +1,122 @@
+{
+  "agentes": {
+    "c-orquestrador": {
+      "escrita": [
+        "produtos/C"
+      ],
+      "skills": [
+        "apresentacao-padrao-ceabe",
+        "base-premissas",
+        "ingestao-data-request",
+        "verificacao-independente"
+      ]
+    },
+    "controlador-dr": {
+      "escrita": [
+        "produtos/C"
+      ],
+      "skills": [
+        "base-premissas",
+        "ingestao-data-request",
+        "verificacao-independente"
+      ]
+    },
+    "p1-diagnostico": {
+      "escrita": [
+        "produtos/P1"
+      ],
+      "skills": [
+        "base-premissas",
+        "ingestao-data-request",
+        "verificacao-independente"
+      ]
+    },
+    "p2-engenharia": {
+      "escrita": [
+        "produtos/P2"
+      ],
+      "skills": [
+        "base-premissas",
+        "capex-opex-ciclo-vida",
+        "indicadores-mecanismo-pagamento",
+        "ingestao-data-request",
+        "programa-necessidades-layout",
+        "ti-como-servico",
+        "verificacao-independente"
+      ]
+    },
+    "p3-mercado": {
+      "escrita": [
+        "produtos/P3"
+      ],
+      "skills": [
+        "analise-varejo-shopping",
+        "avaliacao-imobiliaria",
+        "base-premissas",
+        "ingestao-data-request",
+        "perfil-demanda-publico",
+        "verificacao-independente"
+      ]
+    },
+    "p4-modelagem": {
+      "escrita": [
+        "produtos/P4"
+      ],
+      "skills": [
+        "base-premissas",
+        "capacidade-fiscal-ppp",
+        "comparador-publico",
+        "execucao-orcamentaria-municipal",
+        "ingestao-data-request",
+        "matriz-riscos-ppp",
+        "plano-negocios-ppp",
+        "value-for-money",
+        "verificacao-independente"
+      ]
+    },
+    "p5-juridico": {
+      "escrita": [
+        "produtos/P5"
+      ],
+      "skills": [
+        "base-premissas",
+        "indicadores-mecanismo-pagamento",
+        "ingestao-data-request",
+        "matriz-riscos-ppp",
+        "minutas-ppp",
+        "verificacao-independente"
+      ]
+    },
+    "p6-participacao": {
+      "escrita": [
+        "produtos/P6"
+      ],
+      "skills": [
+        "base-premissas",
+        "consulta-publica",
+        "ingestao-data-request",
+        "verificacao-independente"
+      ]
+    },
+    "p7-licitacao": {
+      "escrita": [
+        "produtos/P7"
+      ],
+      "skills": [
+        "base-premissas",
+        "ingestao-data-request",
+        "plano-negocios-ppp",
+        "verificacao-independente"
+      ]
+    },
+    "revisor-independente": {
+      "escrita": [],
+      "skills": [
+        "base-premissas",
+        "ingestao-data-request",
+        "verificacao-independente"
+      ]
+    }
+  },
+  "versao": 1
+}

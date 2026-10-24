@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Read(/registros/**)",
+      "Read(/governanca/**)",
+      "Edit(/produtos/**)"
+    ],
+    "deny": [
+      "Edit(/dados/**)",
+      "Edit(/registros/**)",
+      "Edit(/governanca/**)",
+      "Edit(/.claude/**)",
+      "Edit(/scripts/**)",
+      "Edit(/testes/**)",
+      "Edit(/arquitetura/**)",
+      "Edit(/referencias/**)",
+      "Edit(/logs/**)",
+      "Edit(/projects/**)",
+      "Edit(/*.md)",
+      "Edit(/*.txt)",
+      "Edit(/*.lock)",
+      "Edit(/.gitignore)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Skill|Bash|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guarda_ferramentas.py\" || exit 2"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -9,4 +9,6 @@ dados/**/*
 registros/**/*
 !registros/**/
 !registros/**/.gitkeep
+logs/*
+!logs/.gitkeep
 *.zip
