@@ -132,7 +132,7 @@ class TestLancador(Base):
         (falso / "claude").chmod(0o755)
         import os
         env = dict(os.environ, PATH=f"{falso}:{os.environ['PATH']}")
-        r = subprocess.run([sys.executable, "-I", str(self.raiz / "scripts/iniciar_sessao.py"), "--dry-run",
+        r = subprocess.run([sys.executable, "-I", str(self.raiz / "scripts/iniciar_sessao.py"), "--dry-run", "--sem-isolamento",
                             "--agent", "c-orquestrador"], capture_output=True, text=True, timeout=60, env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
         partes = r.stdout.split()
@@ -149,7 +149,7 @@ class TestLancador(Base):
         import os
         env = dict(os.environ, PATH=f"{falso}:{os.environ['PATH']}")
         antes = (self.raiz / ".claude/settings.json").read_bytes()
-        r = subprocess.run([sys.executable, "-I", str(self.raiz / "scripts/iniciar_sessao.py"), "--dry-run", "--sandbox"],
+        r = subprocess.run([sys.executable, "-I", str(self.raiz / "scripts/iniciar_sessao.py"), "--dry-run", "--sem-isolamento", "--sandbox"],
                            capture_output=True, text=True, timeout=60, env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
         partes = r.stdout.split()
@@ -165,7 +165,7 @@ class TestLancador(Base):
 
     def test_recusa_iniciar_com_configuracao_comprometida(self):
         (self.raiz / ".claude/settings.json").write_text("{", encoding="utf-8")
-        r = self.lancar("--dry-run")
+        r = self.lancar("--dry-run", "--sem-isolamento")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("NÃO iniciada", r.stderr)
         self.assertEqual(r.stdout, "")

@@ -11,7 +11,7 @@ Com `--papel` (obrigatório para dados reais; exige executar como root ou já co
   5. entrega ao `claude` só um ambiente mínimo: HOME próprio do papel, PATH fixo e variáveis de autenticação/proxy permitidas
      (nenhuma credencial é gravada em disco por este script; use variável de ambiente do operador).
 
-Uso:  python3 scripts/iniciar_sessao.py [--papel NOME] [--jaula] [--dry-run] [--sandbox] [--claude CAMINHO] [-- opções do claude]
+Uso:  python3 scripts/iniciar_sessao.py [--papel NOME] [--jaula] [--sem-isolamento] [--dry-run] [--sandbox] [--claude CAMINHO] [-- opções do claude]
       --jaula  (com --papel) envolve o processo inteiro numa jaula bwrap de montagens (scripts/jaula.py)
       papéis: coordenador | controlador-dr | revisor | agentes (este exige --agent pN-...)
 
@@ -33,22 +33,19 @@ PATH_FIXO = "/usr/local/bin:/usr/bin:/bin"
 ENV_PERMITIDAS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL",
                   "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy",
                   "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "LANG", "TERM")
-SEGREDOS = ("KEY", "TOKEN", "SECRET", "PASSWORD")
+SEGREDOS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PROXY")
+OPCOES_PROIBIDAS = ("--settings", "--setting-sources", "--dangerously-skip-permissions", "--permission-mode",
+                    "--allow-dangerously-skip-permissions", "--add-dir", "--mcp-config", "--plugin-dir")
 
 
 def settings_com_sandbox(destino_dir=None, dono=None):
     base = json.loads((V.RAIZ / ".claude/settings.json").read_text(encoding="utf-8"))
     base.update(json.loads((V.RAIZ / "governanca/sandbox-recomendado.json").read_text(encoding="utf-8")))
-    if destino_dir:
-        caminho = str(Path(destino_dir) / "settings-sandbox.json")
-        Path(caminho).write_text(json.dumps(base, ensure_ascii=False), encoding="utf-8")
-        os.chmod(caminho, 0o600)
-        if dono:
-            os.chown(caminho, *dono)
-        return caminho
-    fd, caminho = tempfile.mkstemp(prefix="ppp-settings-", suffix=".json")
+    # Em /var/tmp (sticky; a jaula esconde /tmp, não /var/tmp), O_EXCL, dono de quem lança (root): o papel lê, não troca
+    fd, caminho = tempfile.mkstemp(prefix="ppp-settings-", suffix=".json", dir="/var/tmp" if os.path.isdir("/var/tmp") else None)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(base, f, ensure_ascii=False)
+    os.chmod(caminho, 0o644)
     return caminho
 
 
@@ -64,6 +61,9 @@ def plano_do_papel(spec, papel, argumentos, claude, home_base=None, dry_run=Fals
     """Monta (comando, env, cwd, uid, gid, gids) do papel; levanta SystemExit em qualquer recusa."""
     if papel not in spec["papeis"]:
         raise SystemExit(f"papel desconhecido: {papel} (válidos: {', '.join(spec['papeis'])})")
+    for a in argumentos:
+        if a.split("=", 1)[0] in OPCOES_PROIBIDAS:
+            raise SystemExit(f"opção recusada (reabriria configuração ou permissões): {a}")
     uid, gid, gids = ISO.ids_papel(spec, papel)
     euid = os.geteuid()
     if euid not in (0, uid):
@@ -83,8 +83,7 @@ def plano_do_papel(spec, papel, argumentos, claude, home_base=None, dry_run=Fals
     env = ambiente_do_papel(papel, home)
     settings = str(V.RAIZ / ".claude/settings.json")
     if sandbox:
-        settings = (str(home / "settings-sandbox.json") if dry_run
-                    else settings_com_sandbox(home, (uid, gid) if euid == 0 else None))
+        settings = "<temporario>/ppp-settings.json" if dry_run else settings_com_sandbox()
     flags = ["--settings", settings, "--setting-sources", "user,project"]
     prefixo = []
     if euid == 0:
@@ -131,14 +130,20 @@ def main(argv):
     seco = "--dry-run" in argv
     sandbox = "--sandbox" in argv
     jaula = "--jaula" in argv
-    resto = [a for a in argv if a not in ("--dry-run", "--sandbox", "--jaula")]
+    sem_isolamento = "--sem-isolamento" in argv
+    resto = [a for a in argv if a not in ("--dry-run", "--sandbox", "--jaula", "--sem-isolamento")]
     papel, resto = _opcao(resto, "--papel")
     claude, resto = _opcao(resto, "--claude")
     home_base, resto = _opcao(resto, "--home-base")
     if resto[:1] == ["--"]:
         resto = resto[1:]
+    if "--papel" in argv and papel is None:
+        raise SystemExit("--papel exige um valor")
     if papel is None and jaula:
         raise SystemExit("--jaula exige --papel (o perfil de montagem vem do papel)")
+    if papel is None and os.geteuid() == 0 and not sem_isolamento:
+        raise SystemExit("recusado: como root, a sessão exige --papel (rebaixa privilégio) ou, só com dados sintéticos, "
+                         "--sem-isolamento explícito")
     if papel is None:
         print("AVISO: sem --papel não há isolamento de SO; use SOMENTE com dados sintéticos.", file=sys.stderr)
         comando = montar(resto, claude, sandbox)

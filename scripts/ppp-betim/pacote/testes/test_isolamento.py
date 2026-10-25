@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import iniciar_sessao as L  # noqa: E402
 import isolamento as I  # noqa: E402
+import jaula as J  # noqa: E402
 
 KERNEL = sys.platform.startswith("linux") and hasattr(os, "geteuid") and os.geteuid() == 0 and shutil.which("setpriv")
 PULAR = unittest.skipUnless(KERNEL, "exige Linux, root e setpriv: isolamento de kernel NÃO validado")
@@ -93,9 +94,42 @@ class TestEspecificacao(unittest.TestCase):
         self.assertIn("REVISAR", c)
 
 
+class TestDocumentoGov07(unittest.TestCase):
+    def test_documento_nao_declara_homologacao(self):
+        texto = (ROOT / "governanca/GOV-07-isolamento-por-so.md").read_text(encoding="utf-8")
+        for esperado in ("NÃO LIBERADO", "BLOQUEAR", "NÃO EXECUTADO"):
+            self.assertIn(esperado, texto)
+        self.assertNotIn("HOMOLOGADO PARA DOCUMENTOS REAIS", texto.replace("NÃO HOMOLOGADO PARA DOCUMENTOS REAIS", ""))
+
+
 class TestLancadorPorPapel(unittest.TestCase):
     def setUp(self):
         self.spec = spec_base()
+
+    def test_opcoes_que_reabririam_configuracao_ou_permissao_sao_recusadas(self):
+        for opcao in ("--settings", "--setting-sources", "--dangerously-skip-permissions", "--permission-mode=bypassPermissions",
+                      "--mcp-config"):
+            with self.assertRaisesRegex(SystemExit, "opção recusada"):
+                L.plano_do_papel(self.spec, "coordenador", [opcao, "x"], "/bin/true", dry_run=True)
+
+    def test_papel_sem_valor_ou_root_sem_papel_e_recusado(self):
+        with self.assertRaises(SystemExit):
+            L.main(["--dry-run", "--papel"])
+        if os.geteuid() == 0:
+            with self.assertRaises(SystemExit):
+                L.main(["--dry-run"])
+
+    def test_jaula_usa_bwrap_absoluto_e_oculta_por_falta_de_leitura(self):
+        if not shutil.which("bwrap"):
+            self.skipTest("bwrap ausente")
+        a = J.argumentos_jaula(self.spec, "agentes", "/srv/x/p", "/srv/x/h")
+        self.assertTrue(os.path.isabs(a[0]))
+        self.assertIn("--unshare-uts", a)
+        spec = json.loads(json.dumps(self.spec))
+        for area in spec["areas"]:
+            area.pop("sigilosa", None)                                # rótulo ausente não pode abrir a área
+        b = J.argumentos_jaula(spec, "agentes", "/srv/x/p", "/srv/x/h")
+        self.assertIn("/srv/x/p/dados/restritos", b)
 
     def test_ambiente_minimo_sem_vazar_segredos(self):
         origem = {"ANTHROPIC_API_KEY": "chave", "AWS_SECRET_ACCESS_KEY": "x", "GITHUB_TOKEN": "y", "HTTPS_PROXY": "p",

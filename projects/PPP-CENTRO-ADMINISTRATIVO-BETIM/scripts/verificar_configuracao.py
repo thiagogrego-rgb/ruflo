@@ -30,7 +30,8 @@ def sha256(caminho):
 
 def arquivos_controlados(raiz):
     fixos = [".claude/settings.json", "governanca/matriz-agentes.json",
-             "scripts/verificar_configuracao.py", "scripts/iniciar_sessao.py"]
+             "scripts/verificar_configuracao.py", "scripts/iniciar_sessao.py", "scripts/isolamento.py", "scripts/jaula.py",
+             "governanca/papeis.json"]
     fixos += sorted(p.relative_to(raiz).as_posix() for p in (raiz / ".claude/hooks").glob("*.py"))
     agentes = sorted(p.relative_to(raiz).as_posix() for p in (raiz / ".claude/agents").glob("*.md"))
     skills = sorted(p.relative_to(raiz).as_posix() for p in (raiz / ".claude/skills").glob("*/SKILL.md"))

@@ -10,7 +10,7 @@
     ".claude/agents/p6-participacao.md": "313b42cf60c32fc3d244fb775bb9964d98f5569b44278962e333e71a06be7275",
     ".claude/agents/p7-licitacao.md": "93e1a11d484ff580fb42fee21a60c76fccf435560a440a8e07215c48129276aa",
     ".claude/agents/revisor-independente.md": "e8b626d9c9ecdda967f2bddf9a5e1155808bba6f3cd411aff17d62dd650c60b2",
-    ".claude/hooks/guarda_base.py": "b19ac472e5c4bcf8c5e3daa56b02ac26bd8c09189210fac5acc4dbec818cbbd4",
+    ".claude/hooks/guarda_base.py": "e309c8acd92688420732b4b84a0f14b95cdbb2975e39ed7469851d94b891567d",
     ".claude/hooks/guarda_bash.py": "d85a29c0698122cd5d80f0f32002dba87f78dee5fa77587a1e22c28be0559893",
     ".claude/hooks/guarda_ferramentas.py": "58006827790cd6c5581e6ef8793e4da736fe00f07a5fb62ceabbb6ddf7b6315b",
     ".claude/settings.json": "3d397163ec92808f53bcf0ce5d118bb7ab9a321a0a0c03b0138909fa5acf8124",
@@ -34,8 +34,11 @@
     ".claude/skills/value-for-money/SKILL.md": "6bb24f2376c4a6206247ecbeafc892ca1b1a8b95917d6dda91019a4692d78875",
     ".claude/skills/verificacao-independente/SKILL.md": "0323ca8df07a007d19cc6ce59aa7ea20e96757f13ec339ca6d569ead313b5436",
     "governanca/matriz-agentes.json": "1a7ce4542dab4ba6d2648f7d812a172cc24b4749d6b7b0d59b14047f3eb262b5",
-    "scripts/iniciar_sessao.py": "73da8d37f9bfb2731a98d19631b0b22634cd4fbd610d9e75225bab19727fcc38",
-    "scripts/verificar_configuracao.py": "e2c358f853abcbcec5ee6474b3f145c9e14498cd712add1d94aa8272f3430b1d"
+    "governanca/papeis.json": "c0d636ef1f8595918124d7418916096720c3ae3393442991f98ae41851bfd579",
+    "scripts/iniciar_sessao.py": "6046da15f58e4ab7b66e30cd07468d657577d8c17e6c79bad3663ee4eb2228e3",
+    "scripts/isolamento.py": "d5ed48c5d3b5891c9b79367b61a30fd24c563b8fbeed6968b58c7477d56a4806",
+    "scripts/jaula.py": "526d1fc2bc58354cdd432ae64549cb8e0f94eb3ffb7f482060bd1ae931dd69ea",
+    "scripts/verificar_configuracao.py": "91903433efab6a04bc0ead254e3104a9d66d664fda3a7ebbd6fdab23e0b6c7a3"
   },
   "versao": 1
 }

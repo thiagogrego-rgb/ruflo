@@ -158,7 +158,10 @@ def comandos_contas(spec):
 
 def _percorrer(raiz):
     yield raiz
-    for base, dirs, arqs in os.walk(raiz, followlinks=False):
+    def _falha(erro):
+        raise erro      # diretório ilegível não pode virar "conforme" em silêncio
+
+    for base, dirs, arqs in os.walk(raiz, followlinks=False, onerror=_falha):
         for n in dirs + arqs:
             yield Path(base) / n
 

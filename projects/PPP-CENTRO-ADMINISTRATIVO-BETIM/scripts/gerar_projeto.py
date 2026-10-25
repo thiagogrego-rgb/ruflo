@@ -379,6 +379,11 @@ FONTES = (
     "testes/test_permissoes.py",
     "scripts/verificar_configuracao.py",
     "scripts/iniciar_sessao.py",
+    "scripts/isolamento.py",
+    "scripts/jaula.py",
+    "governanca/papeis.json",
+    "governanca/GOV-07-isolamento-por-so.md",
+    "testes/test_isolamento.py",
     "testes/test_configuracao.py",
 )
 
@@ -847,6 +852,9 @@ class TestEstrutura(unittest.TestCase):
   por lista de permissão, verificador de configuração + lançador de sessão (falha aberta de `settings.json`
   inválido e de `disableAllHooks`), sandbox opcional testado. Parecer: aceite técnico CONDICIONADO e documentos
   reais NÃO autorizados (`governanca/GOV-06-homologacao-seguranca.md`).
+- GOV-07: isolamento por contas de SO (DAC), jaula de montagem (bwrap) e lançador por papel; revisão independente
+  estática; `claude` real como não-root NÃO EXECUTADO. Documentos reais NÃO liberados
+  (`governanca/GOV-07-isolamento-por-so.md`).
 - Decisões gerais e publicação: bloqueadas.
 - Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
   infraestrutura onde o agente não tenha privilégio administrativo

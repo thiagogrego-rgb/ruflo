@@ -27,7 +27,8 @@ def argumentos_jaula(spec, papel, raiz, home, uid=None, gid=None):
     if papel not in spec["papeis"]:
         raise ValueError(f"papel desconhecido: {papel}")
     raiz, home = str(raiz), str(home)
-    a = ["bwrap", "--die-with-parent", "--unshare-user", "--unshare-ipc", "--unshare-pid", "--cap-drop", "ALL"]
+    a = [shutil.which("bwrap") or "bwrap", "--die-with-parent", "--unshare-user", "--unshare-ipc",
+         "--unshare-pid", "--unshare-uts", "--cap-drop", "ALL"]      # sem --new-session: quebraria a sessão interativa (não testada)
     if uid is not None:
         a += ["--uid", str(uid), "--gid", str(gid if gid is not None else uid)]
     a += ["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"]
@@ -40,13 +41,13 @@ def argumentos_jaula(spec, papel, raiz, home, uid=None, gid=None):
             a += ["--bind", caminho, caminho]
     log = os.path.join(raiz, "logs", f"guarda-{papel}.jsonl")
     for area in spec["areas"]:
-        if area.get("sigilosa") and papel not in area["leitura"]:
+        if papel not in area["leitura"]:        # oculta por falta de leitura, não pelo rótulo "sigilosa"
             caminho = os.path.join(raiz, area["caminho"])
             a += ["--tmpfs", caminho]
             if area["caminho"] == "logs" and os.path.exists(log):      # o ponto de montagem do log precisa existir antes do ro
                 a += ["--bind", log, log]
             a += ["--remount-ro", caminho]
-    if os.path.exists(log) and not any("logs" == x["caminho"] and x.get("sigilosa") and papel not in x["leitura"] for x in spec["areas"]):
+    if os.path.exists(log) and not any("logs" == x["caminho"] and papel not in x["leitura"] for x in spec["areas"]):
         a += ["--bind", log, log]
     return a + ["--chdir", raiz]
 
