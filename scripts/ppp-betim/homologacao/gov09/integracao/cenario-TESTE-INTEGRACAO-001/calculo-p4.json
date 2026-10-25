@@ -1,0 +1,18 @@
+{
+ "entrada": {
+  "PREM-900001": "150",
+  "PREM-900002": "85.00",
+  "PREM-900003": "0.08",
+  "PREM-900004": "3200.00",
+  "PREM-900005": "0.10",
+  "PREM-900006": "20"
+ },
+ "saida": {
+  "delta_receita_anual_brl": "140760.00",
+  "vpl_receita_brl": "1198369.23",
+  "capex_brl": "480000.00",
+  "vpl_liquido_brl": "718369.23"
+ },
+ "sha256_entrada": "94c1d2718073b5aabd58f5237b32e3dc82a007f6dbdbc6903b42ff4bfb7c68e9",
+ "sha256_saida": "1d64a9d20ba3ee51159ce43eb66d652578e02974770e947f1fdc0089566500f1"
+}

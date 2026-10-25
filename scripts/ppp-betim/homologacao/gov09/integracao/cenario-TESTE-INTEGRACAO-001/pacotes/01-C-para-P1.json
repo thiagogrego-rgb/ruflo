@@ -1,0 +1,25 @@
+{
+ "identificador": "PKG-TESTE-INTEGRACAO-001-01",
+ "produto_origem": "C",
+ "produto_destinatario": "P1",
+ "versao": 1,
+ "data": "2026-10-25",
+ "natureza_dados": "SINTETICO",
+ "classificacao_sigilo": "PUBLICO-TESTE",
+ "referencias_premissas": [
+  "PREM-900001",
+  "PREM-900002",
+  "PREM-900003",
+  "PREM-900004",
+  "PREM-900005",
+  "PREM-900006"
+ ],
+ "estado_aprovacao": "PROPOSTA",
+ "resultado_esperado": "Ordem de trabalho com escopo, premissas e prazos sintéticos",
+ "corpo": {
+  "cenario": "TESTE-INTEGRACAO-001",
+  "tarefa": "C elabora a ordem de trabalho e a encaminha a P1",
+  "observacao": "Conteúdo de TESTE. Nenhuma premissa aqui está aprovada."
+ },
+ "sha256": "732bd1afe866d676ee378d57a9f90510b952e9ad34bb7849e20ae87f358995d2"
+}

@@ -6,6 +6,11 @@
   "r2"
  ],
  "cenarios_comparados": 11,
+ "reproduzidos_com_PASSOU": 10,
+ "nao_executados_nas_duas": [
+  "S04"
+ ],
+ "ignorado_na_comparacao": "campo 'volatil' (pids, durações, contagens de registros, códigos da rajada) — a evidência comparada é a determinística",
  "resultado": "PASSOU",
  "diferencas": []
 }

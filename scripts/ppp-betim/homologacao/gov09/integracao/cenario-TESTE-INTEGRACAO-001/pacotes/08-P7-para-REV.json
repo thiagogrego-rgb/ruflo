@@ -1,0 +1,25 @@
+{
+ "identificador": "PKG-TESTE-INTEGRACAO-001-08",
+ "produto_origem": "P7",
+ "produto_destinatario": "REV",
+ "versao": 1,
+ "data": "2026-10-25",
+ "natureza_dados": "SINTETICO",
+ "classificacao_sigilo": "PUBLICO-TESTE",
+ "referencias_premissas": [
+  "PREM-900001",
+  "PREM-900002",
+  "PREM-900003",
+  "PREM-900004",
+  "PREM-900005",
+  "PREM-900006"
+ ],
+ "estado_aprovacao": "PROPOSTA",
+ "resultado_esperado": "Impactos sobre edital e critérios",
+ "corpo": {
+  "cenario": "TESTE-INTEGRACAO-001",
+  "tarefa": "P7 identifica impactos sobre documentos e critérios da licitação",
+  "observacao": "Conteúdo de TESTE. Nenhuma premissa aqui está aprovada."
+ },
+ "sha256": "72c4cd41d6c822117ae3070641afe7ff537fb873f29d21d1534d8b05848b654b"
+}

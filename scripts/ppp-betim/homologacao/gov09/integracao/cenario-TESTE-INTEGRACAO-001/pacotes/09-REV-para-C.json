@@ -1,0 +1,25 @@
+{
+ "identificador": "PKG-TESTE-INTEGRACAO-001-09",
+ "produto_origem": "REV",
+ "produto_destinatario": "C",
+ "versao": 1,
+ "data": "2026-10-25",
+ "natureza_dados": "SINTETICO",
+ "classificacao_sigilo": "PUBLICO-TESTE",
+ "referencias_premissas": [
+  "PREM-900001",
+  "PREM-900002",
+  "PREM-900003",
+  "PREM-900004",
+  "PREM-900005",
+  "PREM-900006"
+ ],
+ "estado_aprovacao": "PROPOSTA",
+ "resultado_esperado": "Relatório de verificação sem alterar o objeto auditado",
+ "corpo": {
+  "cenario": "TESTE-INTEGRACAO-001",
+  "tarefa": "Revisor independente confere versões, fontes sintéticas e cálculos",
+  "observacao": "Conteúdo de TESTE. Nenhuma premissa aqui está aprovada."
+ },
+ "sha256": "116e9d566b3b6cdd91aa32dce6c5e66944821d618af61815011aac83303cd3e0"
+}

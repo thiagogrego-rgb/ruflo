@@ -1,0 +1,25 @@
+{
+ "identificador": "PKG-TESTE-INTEGRACAO-001-05",
+ "produto_origem": "P4",
+ "produto_destinatario": "P5",
+ "versao": 1,
+ "data": "2026-10-25",
+ "natureza_dados": "SINTETICO",
+ "classificacao_sigilo": "PUBLICO-TESTE",
+ "referencias_premissas": [
+  "PREM-900001",
+  "PREM-900002",
+  "PREM-900003",
+  "PREM-900004",
+  "PREM-900005",
+  "PREM-900006"
+ ],
+ "estado_aprovacao": "PROPOSTA",
+ "resultado_esperado": "Cálculo reproduzível com hash de entrada e saída",
+ "corpo": {
+  "cenario": "TESTE-INTEGRACAO-001",
+  "tarefa": "P4 calcula o impacto econômico em ambiente reproduzível",
+  "observacao": "Conteúdo de TESTE. Nenhuma premissa aqui está aprovada."
+ },
+ "sha256": "2942e240c67e8f2b037bfcb86f4496b460501d44a0d45ae7bd606198d581846f"
+}

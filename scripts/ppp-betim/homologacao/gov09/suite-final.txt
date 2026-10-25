@@ -1,0 +1,5 @@
+commit testado: 61d8435400cb3215bc6f98a4b71727fd5a97614b
+geração do projeto: VERIFICAÇÃO DO ZIP: OK;TESTES INICIAIS: PASSARAM;
+suíte completa (unittest discover, árvore gerada do commit):
+Ran 430 tests in 205.725s
+OK (skipped=1)

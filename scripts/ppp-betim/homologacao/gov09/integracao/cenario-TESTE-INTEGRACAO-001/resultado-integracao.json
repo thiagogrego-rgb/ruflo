@@ -1,0 +1,18 @@
+{
+ "cenario": "TESTE-INTEGRACAO-001",
+ "data": "2026-10-25",
+ "verificacoes_mecanicas": {
+  "calculo_p4_reproduzivel": "PASSOU",
+  "premissas_registradas_como_proposta": "PASSOU",
+  "nenhuma_premissa_aprovada_automaticamente": "PASSOU",
+  "declarar_aprovada_e_recusado": "PASSOU",
+  "pacotes_validos": "PASSOU",
+  "cadeia_de_transferencias_integra": "PASSOU",
+  "cadeia_cobre_c_p1_a_p7_e_revisor": "PASSOU",
+  "revisor_mecanico_confere_calculo": "PASSOU",
+  "revisor_mecanico_confere_fonte_fixture": "PASSOU",
+  "proposta_nao_e_aprovada": "PASSOU"
+ },
+ "execucao_por_agentes_reais": "NAO_EXECUTADO: exige chamada real ao modelo (sem credencial provisionada por humano); aqui só a mecânica foi exercida",
+ "transferencia_para_o_claude_chat": "NAO_EXECUTADO: sem acesso à interface do Claude Chat nesta sessão; usar o roteiro manual supervisionado"
+}

@@ -1,0 +1,25 @@
+{
+ "identificador": "PKG-TESTE-INTEGRACAO-001-02",
+ "produto_origem": "P1",
+ "produto_destinatario": "P2",
+ "versao": 1,
+ "data": "2026-10-25",
+ "natureza_dados": "SINTETICO",
+ "classificacao_sigilo": "PUBLICO-TESTE",
+ "referencias_premissas": [
+  "PREM-900001",
+  "PREM-900002",
+  "PREM-900003",
+  "PREM-900004",
+  "PREM-900005",
+  "PREM-900006"
+ ],
+ "estado_aprovacao": "PROPOSTA",
+ "resultado_esperado": "Parecer de compatibilidade de escopo (sem aprovar escopo)",
+ "corpo": {
+  "cenario": "TESTE-INTEGRACAO-001",
+  "tarefa": "P1 confere a compatibilidade do escopo",
+  "observacao": "Conteúdo de TESTE. Nenhuma premissa aqui está aprovada."
+ },
+ "sha256": "2444c3ed3ea43478da7c436fcd7e9cfa6338bd2c503a8ae78d8306bd1ae263f4"
+}

@@ -1,0 +1,86 @@
+{
+ "id": "TESTE-INTEGRACAO-001",
+ "estado": "PROPOSTA",
+ "natureza_dados": "SINTETICO",
+ "versao_cenario": 1,
+ "data_base": "2026-01",
+ "fonte": {
+  "id": "FONTE-900001",
+  "tipo": "FIXTURE_DE_TESTE",
+  "descricao": "Valores inventados para teste; sem relação com documentos reais"
+ },
+ "premissas": [
+  {
+   "id": "PREM-900001",
+   "versao": 1,
+   "produto": "P2",
+   "natureza": "HIPOTESE",
+   "unidade": "m2",
+   "valor": 150,
+   "descricao": "Acréscimo fictício de área comercial (de 1200 para 1350 m²)",
+   "status": "PROPOSTA",
+   "justificativa_hipotese": "valor sintético da fixture de teste",
+   "data_base": "2026-01"
+  },
+  {
+   "id": "PREM-900002",
+   "versao": 1,
+   "produto": "P3",
+   "natureza": "HIPOTESE",
+   "unidade": "BRL/m2/mes",
+   "valor": "85.00",
+   "descricao": "Aluguel médio fictício por m²",
+   "status": "PROPOSTA",
+   "justificativa_hipotese": "valor sintético da fixture de teste",
+   "data_base": "2026-01"
+  },
+  {
+   "id": "PREM-900003",
+   "versao": 1,
+   "produto": "P3",
+   "natureza": "HIPOTESE",
+   "unidade": "fracao",
+   "valor": "0.08",
+   "descricao": "Vacância fictícia",
+   "status": "PROPOSTA",
+   "justificativa_hipotese": "valor sintético da fixture de teste",
+   "data_base": "2026-01"
+  },
+  {
+   "id": "PREM-900004",
+   "versao": 1,
+   "produto": "P4",
+   "natureza": "HIPOTESE",
+   "unidade": "BRL/m2",
+   "valor": "3200.00",
+   "descricao": "Custo fictício de obra por m²",
+   "status": "PROPOSTA",
+   "justificativa_hipotese": "valor sintético da fixture de teste",
+   "data_base": "2026-01"
+  },
+  {
+   "id": "PREM-900005",
+   "versao": 1,
+   "produto": "P4",
+   "natureza": "HIPOTESE",
+   "unidade": "fracao_a_a",
+   "valor": "0.10",
+   "descricao": "Taxa de desconto fictícia",
+   "status": "PROPOSTA",
+   "justificativa_hipotese": "valor sintético da fixture de teste",
+   "data_base": "2026-01"
+  },
+  {
+   "id": "PREM-900006",
+   "versao": 1,
+   "produto": "P4",
+   "natureza": "HIPOTESE",
+   "unidade": "anos",
+   "valor": 20,
+   "descricao": "Prazo fictício de análise",
+   "status": "PROPOSTA",
+   "justificativa_hipotese": "valor sintético da fixture de teste",
+   "data_base": "2026-01"
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "pacote": "CONTEXTO-CHAT-PPP-BETIM",
+ "versao": 1,
+ "data": "2026-10-25",
+ "natureza_dados": "SINTETICO",
+ "classificacao_sigilo": "PUBLICO-TESTE",
+ "fonte_de_verdade": "repositório (não este pacote)",
+ "exclui": [
+  "dados/",
+  "logs/",
+  "registros/",
+  "produtos/",
+  "documentos da Prefeitura ou do Monte Carmo",
+  "credenciais"
+ ],
+ "arquivos": {
+  "FIXTURE-TESTE-INTEGRACAO-001.json": "d6419c011f35796dbfb8c2c7ea9f28d6c6940f52794e72f62c53942e4382f99e",
+  "INSTRUCOES-GLOBAIS-SUGERIDAS.md": "5d13851000ba4b1de8b7c3bfa911370e4f084e762d9ea72679fd6bc50afdb765",
+  "MATRIZ-DE-AGENTES.md": "f03aeb92949b96b377870b692e74782b4292778571a0b2f523455864fac6e589",
+  "REGRAS-DE-TRANSFERENCIA.md": "11f60b6bedea52fd896ece0107ea2af90e9ec439b574abe149b67beb646a8d9d",
+  "TEMPLATE-PACOTE.json": "d4f241a0acd97bc9675051908cb98f5119522f0a311aaf8137e063cbd6774350"
+ }
+}

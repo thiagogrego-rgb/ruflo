@@ -1,9 +1,10 @@
 {
  "rotulo": "r2",
  "modo": "laboratorio-modelo-simulado",
- "inicio": "2026-10-25T02:46:49+0000",
- "duracao_s": 57.2,
+ "inicio": "2026-10-25T03:24:34+0000",
+ "duracao_s": 58.3,
  "credencial": "canário sintético (laboratório)",
+ "codigo_instalado_sha256": "3f433fb4603bb78a4755431789625b555a65feb0e8946a232f6984cc14f9b9a9",
  "chamada_real_a_api": "NAO_EXECUTADO",
  "cenarios": [
   {
@@ -22,8 +23,11 @@
     "nao_e_root": true
    },
    "volatil": {
-    "pid": 24841,
+    "pid": 1418,
     "grupos": "61100",
+    "binario": "/opt/claude-code/bin/claude",
+    "versao": "2.1.310 (Claude Code)",
+    "papel_testado": "p3",
     "duracao_s": 17.2
    }
   },
@@ -34,7 +38,8 @@
    "evidencia": {
     "auditoria_conforme": true,
     "sondagem_conforme": true,
-    "papeis_sondados": 10,
+    "papeis_sondados_igual_ao_declarado": true,
+    "contas_inventariadas_igual_as_declaradas": true,
     "contas_conferem_com_o_sistema": true,
     "contas_sem_shell_de_login": true,
     "operacoes_sondadas_acima_de_800": true
@@ -63,7 +68,7 @@
    },
    "volatil": {
     "mensagens": {
-     "sem_root": "/usr/bin/python3: can't open file '/srv/ppp-betim/projeto/scripts/iniciar_sessao.py': [Errno 13] Permission denied",
+     "sem_root": "execute como root: só o root cria o settings do papel fora do alcance dele, audita a árvore e rebaixa o processo",
      "root_sem_papel": "recusado: como root, a sessão exige --papel (rebaixa privilégio) ou, só com dados sintéticos, --sem-isolamento explícito",
      "opcao_fora_da_lista_branca": "opção recusada (fora da lista branca; reabriria configuração, ferramentas ou permissões): --dangerously-skip-permissions",
      "opcao_agents": "opção recusada (fora da lista branca; reabriria configuração, ferramentas ou permissões): --agents",
@@ -71,7 +76,7 @@
      "papel_inexistente": "papel desconhecido: fantasma (válidos: coordenador, controlador-dr, revisor, p1, p2, p3, p4, p5, p6, p7)",
      "configuracao_adulterada": "  - settings.json ilegível ou inválido (JSONDecodeError): os controles ficariam DESLIGADOS"
     },
-    "duracao_s": 0.7
+    "duracao_s": 0.8
    }
   },
   {
@@ -92,14 +97,15 @@
    "resultado": "PASSOU",
    "evidencia": {
     "modo_do_arquivo_ok": true,
+    "varredura_acha_canario_plantado_em_argv": true,
     "ocorrencias_fora_do_arquivo_da_credencial": 0,
     "nenhum_papel_le_o_arquivo": true,
     "papeis_testados": 10
    },
    "volatil": {
     "locais_com_ocorrencia": [],
-    "impressao": "acfad402",
-    "duracao_s": 1.7
+    "impressao": "502b224a",
+    "duracao_s": 2.7
    }
   },
   {
@@ -118,6 +124,7 @@
    "titulo": "Restrições de rede (namespace vazio + gateway)",
    "resultado": "PASSOU",
    "evidencia": {
+    "destino_so_recebeu_o_pedido_permitido": true,
     "so_loopback": true,
     "sem_internet": true,
     "sem_rota_ao_ip_do_provedor": true,
@@ -157,7 +164,7 @@
    },
    "volatil": {
     "registros_total": 293,
-    "ancora": "20261025T024730-199118",
+    "ancora": "20261025T032518-093535",
     "duracao_s": 0.1
    }
   },
@@ -175,13 +182,13 @@
    },
    "volatil": {
     "registros_total": 342,
-    "ancora": "20261025T024745-288796",
-    "duracao_s": 0.1
+    "ancora": "20261025T032531-489947",
+    "duracao_s": 0.2
    }
   },
   {
    "id": "S08",
-   "titulo": "Dez agentes e dezenove skills em execução real (modelo simulado)",
+   "titulo": "Controle de skills e áreas sobre sessões claude dos dez papéis (modelo SIMULADO)",
    "resultado": "PASSOU",
    "evidencia": {
     "agentes_exercitados": 10,
@@ -189,125 +196,146 @@
     "skills_do_projeto": 19,
     "skills_exercitadas_por_algum_agente": 19,
     "skills_nunca_exercitadas": [],
+    "papeis_sem_skill_proibida_para_testar": [],
     "por_agente": {
      "coordenador": {
       "agente": "c-orquestrador",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 4,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      },
      "controlador-dr": {
       "agente": "controlador-dr",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 3,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      },
      "revisor": {
       "agente": "revisor-independente",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 3,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": true,
       "sessao_terminou": true
      },
      "p1": {
       "agente": "p1-diagnostico",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 3,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      },
      "p2": {
       "agente": "p2-engenharia",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 7,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      },
      "p3": {
       "agente": "p3-mercado",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 6,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "apresentacao-padrao-ceabe",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      },
      "p4": {
       "agente": "p4-modelagem",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 9,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      },
      "p5": {
       "agente": "p5-juridico",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 6,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      },
      "p6": {
       "agente": "p6-participacao",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 4,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      },
      "p7": {
       "agente": "p7-licitacao",
-      "skills_autorizadas_ok": true,
       "n_autorizadas": 4,
-      "skill_nao_autorizada_recusada": true,
-      "skill_externa_recusada": true,
-      "gravacao_headless_sem_aprovacao_negada": true,
-      "so_grava_na_propria_area": true,
-      "so_nega_area_alheia": true,
-      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "skill_nao_autorizada_testada": "analise-varejo-shopping",
+      "skills_autorizadas_ok": true,
+      "skill_nao_autorizada_recusada_pelo_guardiao": true,
+      "skill_externa_recusada_pelo_guardiao": true,
+      "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": true,
+      "so_grava_na_propria_area_so": true,
+      "area_alheia_negada_pelo_so": true,
+      "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": true,
+      "agente_sem_ferramenta_write": false,
       "sessao_terminou": true
      }
     },
@@ -326,7 +354,7 @@
      "p6": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P6/SINTETICO-pilo",
      "p7": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P7/SINTETICO-pilo"
     },
-    "duracao_s": 21.2
+    "duracao_s": 22.6
    }
   },
   {
@@ -365,21 +393,25 @@
      "limite_por_papel_aplicado": true,
      "algumas_atendidas": true,
      "nenhum_erro_de_conexao": true,
+     "codigos_observados": [
+      200,
+      429
+     ],
+     "recusa_registrada_com_motivo_de_limite": true,
      "gateway_continua_vivo": true
     },
     "F4_credencial_ausente_e_rotacao": {
-     "gateway_nao_sobe_sem_credencial": true,
+     "gateway_derrubado_pela_revogacao_sem_intervencao": true,
      "sessao_falha_sem_credencial": true,
      "gateway_volta_com_nova_credencial": true,
      "sessao_normal_apos_rotacao": true,
      "destino_viu_so_a_chave_nova": true,
-     "chave_antiga_nao_chegou_apos_rotacao": true,
-     "config_existe": true
+     "chave_antiga_nao_chegou_apos_rotacao": true
     }
    },
    "volatil": {
     "F3_destino_indisponivel": {
-     "duracao_s": 0.9
+     "duracao_s": 1.0
     },
     "F6_rajada_de_requisicoes": {
      "codigos": [
@@ -397,7 +429,7 @@
       429
      ]
     },
-    "duracao_s": 14.3
+    "duracao_s": 12.8
    }
   }
  ],

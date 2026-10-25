@@ -1,0 +1,13 @@
+{
+ "cenario": "TESTE-INTEGRACAO-001",
+ "estado": "PROPOSTA",
+ "proposto_por": "C (mecânica do cenário; sem raciocínio de agente)",
+ "impacto": {
+  "delta_receita_anual_brl": "140760.00",
+  "vpl_receita_brl": "1198369.23",
+  "capex_brl": "480000.00",
+  "vpl_liquido_brl": "718369.23"
+ },
+ "portao_humano_aplicavel": "Coordenador humano: alteração de área comercial afeta receitas, CAPEX e escopo (política: nenhum agente aprova escopo, prazo, risco, preço ou publicação); publicação exigiria aprovação separada",
+ "aprovada": false
+}
