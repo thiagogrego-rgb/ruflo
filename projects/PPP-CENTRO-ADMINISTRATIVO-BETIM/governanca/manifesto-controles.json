@@ -36,15 +36,21 @@
     "governanca/matriz-agentes.json": "8cf0cbbb4a91aef38fd60aa531d44e484e699b145a40d46ff285a2c6c346de3b",
     "governanca/papeis.json": "d06f10573a3f65843aa1a89e9ed569ea87ce6fafc070d86eb56a28ae6421f18d",
     "governanca/sandbox-recomendado.json": "1889c61717f3e670b57455cfe53780b9a53aa09b4119a14a48b58a6906859289",
+    "scripts/ancora_logs.py": "c39590c4212f31307b0f5db10b7a99927c66b82ab849ef1e77f197c49fcd1fd6",
     "scripts/entrada_jaula.py": "c7bf4334b7a53d93429ad61e2a73faed3da434f1e6eea5ee3e9bd8a1de2089fe",
-    "scripts/gateway.py": "7c4b0b7b8c9945e0fdfb1d5796fa5f5e324555ec2aaa024451c42346040b3ff4",
-    "scripts/iniciar_sessao.py": "5e069271b6290946fe298fc91f2c7c396b8253181865c3b22685246a7c411a75",
+    "scripts/gateway.py": "2a896530a5127eead8fc3981d9033c058eaa4f5ef09ae2a22e4f0e671087776b",
+    "scripts/iniciar_sessao.py": "fcc88928fe3856e4047bc63ac08c60d801d8b52e1d3fbceb6c189bd6c22741ff",
+    "scripts/integracao_chat.py": "c35a5ab0b5d7741afc26653b25f7c473bb2bef43647bd76b56bdc5f28f06b5d3",
     "scripts/isolamento.py": "19ee661613898e5042be95c9a10f669ef547e87b3a0df7268521f193e6faa2f5",
     "scripts/isolamento_base.py": "80049194eec429e2f119b19f425d41c8df3fc14fa49066e41be436b58e3b8ddd",
     "scripts/isolamento_so.py": "96166a79dea162eca07eb9cf0179d3b7b18488294771989aed166e7a1a111179",
     "scripts/jaula.py": "68a671d67761054724761ffd3e5bd40b81a132ac0bc103c8d6949101bde0d57a",
-    "scripts/logd.py": "d125c5e9106beaaa3a32026dab1444aedb9cbd1970c533c5370d965a3d1d1a85",
-    "scripts/verificar_configuracao.py": "1ec2efb84f171424c7727be329ed7ddf24f518c0d1cbd3c8e972ccd5ddd1b14e"
+    "scripts/logd.py": "78ea6f33789a9ab1960179b82d051f74c4641d11842627db9bbf3008d38e751b",
+    "scripts/piloto.py": "39907be85227c494cd26ac9bb08170512bdfe31fe7d6f4b50b6a3044c363f48a",
+    "scripts/piloto_ambiente.py": "b224f372e80fdd4c184e300581e560b90365a52cdcff36581888265a8e1d8aa6",
+    "scripts/piloto_cenarios.py": "5c87133ec447d22a144e19e7b29a15fc2324279a3c10e9762bf9998c4e4fa200",
+    "scripts/piloto_falhas.py": "145f25d0bc314cad668ad106fe6ca85b7d817e403cc8f72a8b072e7004f15d4c",
+    "scripts/verificar_configuracao.py": "474b8f4ff7bb2e07597c43fb0de138174e7a12b16826d5c0241ee7e9d867cb01"
   },
   "versao": 1
 }
