@@ -1,0 +1,30 @@
+{"ts": "2026-10-25T02:33:01+0000", "acao": "instalada", "operador": "root", "rotulo": "canario-sintetico-r1", "tamanho": 57, "impressao": "8fb7b081", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:35:53+0000", "acao": "revogada", "operador": "root", "motivo": "fim do piloto de laboratório r1"}
+{"ts": "2026-10-25T02:36:22+0000", "acao": "instalada", "operador": "root", "rotulo": "canario-sintetico-r1", "tamanho": 57, "impressao": "21a1cb99", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:36:58+0000", "acao": "revogada", "operador": "root", "motivo": "teste F4 (laboratório)"}
+{"ts": "2026-10-25T02:37:00+0000", "acao": "instalada", "operador": "root", "rotulo": "rotacao-sintetica-F4", "tamanho": 57, "impressao": "fd66bc92", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:37:03+0000", "acao": "revogada", "operador": "root", "motivo": "fim do piloto de laboratório r1"}
+{"ts": "2026-10-25T02:38:23+0000", "acao": "instalada", "operador": "root", "rotulo": "canario-sintetico-r1", "tamanho": 57, "impressao": "f5c97ccf", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:39:14+0000", "acao": "revogada", "operador": "root", "motivo": "teste F4 (laboratório)"}
+{"ts": "2026-10-25T02:39:16+0000", "acao": "instalada", "operador": "root", "rotulo": "rotacao-sintetica-F4", "tamanho": 57, "impressao": "1a769d16", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:39:20+0000", "acao": "revogada", "operador": "root", "motivo": "fim do piloto de laboratório r1"}
+{"ts": "2026-10-25T02:39:32+0000", "acao": "instalada", "operador": "root", "rotulo": "canario-sintetico-r2", "tamanho": 57, "impressao": "75a890e7", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:40:23+0000", "acao": "revogada", "operador": "root", "motivo": "teste F4 (laboratório)"}
+{"ts": "2026-10-25T02:40:25+0000", "acao": "instalada", "operador": "root", "rotulo": "rotacao-sintetica-F4", "tamanho": 57, "impressao": "eafe2718", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:40:28+0000", "acao": "revogada", "operador": "root", "motivo": "fim do piloto de laboratório r2"}
+{"ts": "2026-10-25T02:42:18+0000", "acao": "instalada", "operador": "root", "rotulo": "canario-sintetico-r1", "tamanho": 57, "impressao": "9ea34d2a", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:43:10+0000", "acao": "revogada", "operador": "root", "motivo": "teste F4 (laboratório)"}
+{"ts": "2026-10-25T02:43:13+0000", "acao": "instalada", "operador": "root", "rotulo": "rotacao-sintetica-F4", "tamanho": 57, "impressao": "f676def9", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:43:16+0000", "acao": "revogada", "operador": "root", "motivo": "fim do piloto de laboratório r1"}
+{"ts": "2026-10-25T02:43:17+0000", "acao": "instalada", "operador": "root", "rotulo": "canario-sintetico-r2", "tamanho": 57, "impressao": "994398f1", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:44:08+0000", "acao": "revogada", "operador": "root", "motivo": "teste F4 (laboratório)"}
+{"ts": "2026-10-25T02:44:11+0000", "acao": "instalada", "operador": "root", "rotulo": "rotacao-sintetica-F4", "tamanho": 57, "impressao": "25f6be37", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:44:14+0000", "acao": "revogada", "operador": "root", "motivo": "fim do piloto de laboratório r2"}
+{"ts": "2026-10-25T02:45:50+0000", "acao": "instalada", "operador": "root", "rotulo": "canario-sintetico-r1", "tamanho": 57, "impressao": "7bc4a7ce", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:46:43+0000", "acao": "revogada", "operador": "root", "motivo": "teste F4 (laboratório)"}
+{"ts": "2026-10-25T02:46:45+0000", "acao": "instalada", "operador": "root", "rotulo": "rotacao-sintetica-F4", "tamanho": 57, "impressao": "15e44294", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:46:49+0000", "acao": "revogada", "operador": "root", "motivo": "fim do piloto de laboratório r1"}
+{"ts": "2026-10-25T02:46:49+0000", "acao": "instalada", "operador": "root", "rotulo": "canario-sintetico-r2", "tamanho": 57, "impressao": "acfad402", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:47:41+0000", "acao": "revogada", "operador": "root", "motivo": "teste F4 (laboratório)"}
+{"ts": "2026-10-25T02:47:43+0000", "acao": "instalada", "operador": "root", "rotulo": "rotacao-sintetica-F4", "tamanho": 57, "impressao": "c009f11a", "arquivo": "/etc/ppp-betim/chave-api"}
+{"ts": "2026-10-25T02:47:46+0000", "acao": "revogada", "operador": "root", "motivo": "fim do piloto de laboratório r2"}

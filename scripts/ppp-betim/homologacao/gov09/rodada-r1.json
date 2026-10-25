@@ -1,0 +1,409 @@
+{
+ "rotulo": "r1",
+ "modo": "laboratorio-modelo-simulado",
+ "inicio": "2026-10-25T02:45:50+0000",
+ "duracao_s": 58.0,
+ "credencial": "canário sintético (laboratório)",
+ "chamada_real_a_api": "NAO_EXECUTADO",
+ "cenarios": [
+  {
+   "id": "S01",
+   "titulo": "Claude Code como usuário sem privilégios",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "uid_real_efetivo_salvo": true,
+    "gid_do_papel": true,
+    "capEff_zero": true,
+    "capBnd_zero": true,
+    "no_new_privs": true,
+    "namespace_de_rede_proprio": true,
+    "chave_do_operador_no_ambiente": false,
+    "base_url_local": true,
+    "nao_e_root": true
+   },
+   "volatil": {
+    "pid": 23000,
+    "grupos": "61100",
+    "duracao_s": 17.1
+   }
+  },
+  {
+   "id": "S02",
+   "titulo": "Contas e permissões por papel (sistema real)",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "auditoria_conforme": true,
+    "sondagem_conforme": true,
+    "papeis_sondados": 10,
+    "contas_conferem_com_o_sistema": true,
+    "contas_sem_shell_de_login": true,
+    "operacoes_sondadas_acima_de_800": true
+   },
+   "volatil": {
+    "operacoes": 1538,
+    "divergencias": [],
+    "duracao_s": 0.2
+   }
+  },
+  {
+   "id": "S03",
+   "titulo": "Inicialização segura por mecanismo controlado",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "recusas": {
+     "sem_root": true,
+     "root_sem_papel": true,
+     "opcao_fora_da_lista_branca": true,
+     "opcao_agents": true,
+     "servico_de_log_inexistente": true,
+     "papel_inexistente": true,
+     "configuracao_adulterada": true
+    },
+    "controle_positivo_dry_run_ok": true
+   },
+   "volatil": {
+    "mensagens": {
+     "sem_root": "/usr/bin/python3: can't open file '/srv/ppp-betim/projeto/scripts/iniciar_sessao.py': [Errno 13] Permission denied",
+     "root_sem_papel": "recusado: como root, a sessão exige --papel (rebaixa privilégio) ou, só com dados sintéticos, --sem-isolamento explícito",
+     "opcao_fora_da_lista_branca": "opção recusada (fora da lista branca; reabriria configuração, ferramentas ou permissões): --dangerously-skip-permissions",
+     "opcao_agents": "opção recusada (fora da lista branca; reabriria configuração, ferramentas ou permissões): --agents",
+     "servico_de_log_inexistente": "Sessão NÃO iniciada: serviço de log indisponível (sem trilha, sem sessão)",
+     "papel_inexistente": "papel desconhecido: fantasma (válidos: coordenador, controlador-dr, revisor, p1, p2, p3, p4, p5, p6, p7)",
+     "configuracao_adulterada": "  - settings.json ilegível ou inválido (JSONDecodeError): os controles ficariam DESLIGADOS"
+    },
+    "duracao_s": 0.6
+   }
+  },
+  {
+   "id": "S04",
+   "titulo": "Comunicação real com a API pelo gateway",
+   "resultado": "NAO_EXECUTADO",
+   "evidencia": {
+    "motivo": "execução em modo laboratório com modelo simulado: nenhuma chamada real foi feita",
+    "credencial_provisionada": true
+   },
+   "volatil": {
+    "duracao_s": 0.0
+   }
+  },
+  {
+   "id": "S05",
+   "titulo": "Proteção da credencial",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "modo_do_arquivo_ok": true,
+    "ocorrencias_fora_do_arquivo_da_credencial": 0,
+    "nenhum_papel_le_o_arquivo": true,
+    "papeis_testados": 10
+   },
+   "volatil": {
+    "locais_com_ocorrencia": [],
+    "impressao": "7bc4a7ce",
+    "duracao_s": 1.8
+   }
+  },
+  {
+   "id": "S05b",
+   "titulo": "Credencial rotacionada ausente de argv/ambiente/arquivos após o piloto",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "ocorrencias": 0
+   },
+   "volatil": {
+    "locais": []
+   }
+  },
+  {
+   "id": "S06",
+   "titulo": "Restrições de rede (namespace vazio + gateway)",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "so_loopback": true,
+    "sem_internet": true,
+    "sem_rota_ao_ip_do_provedor": true,
+    "sem_acesso_a_servidor_dns": true,
+    "sem_acesso_ao_loopback_do_host": true,
+    "gateway_aceita_messages": true,
+    "gateway_recusa_models_get_e_files": true
+   },
+   "volatil": {
+    "sonda": {
+     "interfaces": [
+      "lo"
+     ],
+     "internet_1.1.1.1:443": false,
+     "loopback_do_host_porta_do_modelo": false,
+     "ip_do_provedor_alcancavel": false,
+     "servidor_dns_alcancavel": false,
+     "via_gateway_post_messages": 200,
+     "via_gateway_post_models": 403,
+     "via_gateway_get_messages": 403,
+     "via_gateway_post_files": 403
+    },
+    "duracao_s": 0.3
+   }
+  },
+  {
+   "id": "S07",
+   "titulo": "Integridade e armazenamento protegido dos logs",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "cadeias_integras": true,
+    "arquivos_so_anexar_do_servico_0640": true,
+    "nenhum_papel_escreve": true,
+    "ancora_publicada_e_confere": true,
+    "ha_registros": true,
+    "log_de_rede_com_registros": true
+   },
+   "volatil": {
+    "registros_total": 293,
+    "ancora": "20261025T024632-973119",
+    "duracao_s": 0.1
+   }
+  },
+  {
+   "id": "S07b",
+   "titulo": "Integridade dos logs após os testes de falha",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "cadeias_integras": true,
+    "arquivos_so_anexar_do_servico_0640": true,
+    "nenhum_papel_escreve": true,
+    "ancora_publicada_e_confere": true,
+    "ha_registros": true,
+    "log_de_rede_com_registros": true
+   },
+   "volatil": {
+    "registros_total": 342,
+    "ancora": "20261025T024647-544909",
+    "duracao_s": 0.1
+   }
+  },
+  {
+   "id": "S08",
+   "titulo": "Dez agentes e dezenove skills em execução real (modelo simulado)",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "agentes_exercitados": 10,
+    "agentes_esperados": 10,
+    "skills_do_projeto": 19,
+    "skills_exercitadas_por_algum_agente": 19,
+    "skills_nunca_exercitadas": [],
+    "por_agente": {
+     "coordenador": {
+      "agente": "c-orquestrador",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 4,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "controlador-dr": {
+      "agente": "controlador-dr",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 3,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "revisor": {
+      "agente": "revisor-independente",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 3,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "p1": {
+      "agente": "p1-diagnostico",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 3,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "p2": {
+      "agente": "p2-engenharia",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 7,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "p3": {
+      "agente": "p3-mercado",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 6,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "p4": {
+      "agente": "p4-modelagem",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 9,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "p5": {
+      "agente": "p5-juridico",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 6,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "p6": {
+      "agente": "p6-participacao",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 4,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     },
+     "p7": {
+      "agente": "p7-licitacao",
+      "skills_autorizadas_ok": true,
+      "n_autorizadas": 4,
+      "skill_nao_autorizada_recusada": true,
+      "skill_externa_recusada": true,
+      "gravacao_headless_sem_aprovacao_negada": true,
+      "so_grava_na_propria_area": true,
+      "so_nega_area_alheia": true,
+      "escrita_em_area_alheia_barrada_pela_sessao": true,
+      "sessao_terminou": true
+     }
+    },
+    "agentes_com_falha": []
+   },
+   "volatil": {
+    "resultado_da_gravacao_headless": {
+     "coordenador": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/C/SINTETICO-pilot",
+     "controlador-dr": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/DR/saida/SINTETIC",
+     "revisor": "",
+     "p1": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P1/SINTETICO-pilo",
+     "p2": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P2/SINTETICO-pilo",
+     "p3": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P3/SINTETICO-pilo",
+     "p4": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P4/SINTETICO-pilo",
+     "p5": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P5/SINTETICO-pilo",
+     "p6": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P6/SINTETICO-pilo",
+     "p7": "Claude requested permissions to write to /srv/ppp-betim/projeto/produtos/P7/SINTETICO-pilo"
+    },
+    "duracao_s": 21.8
+   }
+  },
+  {
+   "id": "S09",
+   "titulo": "Falha e recuperação (F1–F6)",
+   "resultado": "PASSOU",
+   "evidencia": {
+    "F1_servico_de_log_cai": {
+     "nova_sessao_recusada_enquanto_cai": true,
+     "socket_remanescente_detectado_como_morto": true,
+     "supervisor_reiniciou": true,
+     "sessao_normal_apos_recuperacao": true,
+     "cadeias_integras_apos": true
+    },
+    "F2_gateway_cai": {
+     "sessao_falha_enquanto_gateway_cai": true,
+     "nada_vazou_na_falha": true,
+     "supervisor_reiniciou": true,
+     "sessao_normal_apos_recuperacao": true
+    },
+    "F3_destino_indisponivel": {
+     "sessao_termina_com_erro_e_nao_trava": true,
+     "porta_do_modelo_mantida": true,
+     "sessao_normal_apos_retorno": true
+    },
+    "F5_adulteracao_de_logs": {
+     "registros_no_alvo": 225,
+     "truncagem_da_cauda_detectada_pela_ancora": true,
+     "edicao_detectada_pela_cadeia": true,
+     "remocao_no_meio_detectada": true,
+     "papeis_nao_escrevem_no_log_original": true,
+     "mesmo_root_nao_trunca_com_so_anexar": true,
+     "original_continua_integro": true
+    },
+    "F6_rajada_de_requisicoes": {
+     "limite_por_papel_aplicado": true,
+     "algumas_atendidas": true,
+     "nenhum_erro_de_conexao": true,
+     "gateway_continua_vivo": true
+    },
+    "F4_credencial_ausente_e_rotacao": {
+     "gateway_nao_sobe_sem_credencial": true,
+     "sessao_falha_sem_credencial": true,
+     "gateway_volta_com_nova_credencial": true,
+     "sessao_normal_apos_rotacao": true,
+     "destino_viu_so_a_chave_nova": true,
+     "chave_antiga_nao_chegou_apos_rotacao": true,
+     "config_existe": true
+    }
+   },
+   "volatil": {
+    "F3_destino_indisponivel": {
+     "duracao_s": 0.9
+    },
+    "F6_rajada_de_requisicoes": {
+     "codigos": [
+      200,
+      200,
+      200,
+      200,
+      429,
+      429,
+      429,
+      429,
+      429,
+      429,
+      429,
+      429
+     ]
+    },
+    "duracao_s": 14.5
+   }
+  }
+ ],
+ "resumo": {
+  "PASSOU": 10,
+  "FALHOU": 0,
+  "NAO_EXECUTADO": 1
+ }
+}

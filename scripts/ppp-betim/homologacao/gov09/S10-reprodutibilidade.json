@@ -1,0 +1,11 @@
+{
+ "id": "S10",
+ "titulo": "Reprodutibilidade entre duas rodadas independentes",
+ "rodadas": [
+  "r1",
+  "r2"
+ ],
+ "cenarios_comparados": 11,
+ "resultado": "PASSOU",
+ "diferencas": []
+}
