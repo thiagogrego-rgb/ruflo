@@ -36,7 +36,7 @@ Skills que este agente pode invocar (qualquer outra é recusada pelo guarda):
 - `ingestao-data-request`
 - `verificacao-independente`
 
-Escrita permitida: `produtos/C/`. Registros, dados, governança e configuração são
+Escrita permitida: `produtos/DR/saida/`. Registros, dados, governança e configuração são
 somente leitura para agentes. Uma skill é instrução metodológica: não amplia as
 ferramentas, as áreas de escrita nem a competência deste agente.
 

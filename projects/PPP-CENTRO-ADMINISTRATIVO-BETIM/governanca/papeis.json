@@ -1,59 +1,435 @@
 {
-  "versao": 1,
-  "descricao": "Papéis de sessão = contas de SO distintas. A matriz de leitura/escrita é realizada por dono, grupo e modo dos arquivos (DAC), não por hook. Ids sintéticos para homologação; em produção, trocar pelos ids das contas reais criadas pelo administrador (`isolamento.py contas`).",
-  "home_base": "/var/lib/ppp-betim/homes",
-  "contas": {
-    "ppp-admin": 61000,
-    "ppp-guardiao": 61010,
-    "ppp-coord": 61001,
-    "ppp-dr": 61002,
-    "ppp-rev": 61003,
-    "ppp-agente": 61004
-  },
-  "grupos": {
-    "ppp-leitura": 61100,
-    "ppp-restrito": 61101,
-    "ppp-logs": 61102,
-    "ppp-prod-c": 61103,
-    "ppp-prod-p": 61104
-  },
-  "papeis": {
-    "coordenador": {"conta": "ppp-coord", "grupos": ["ppp-leitura", "ppp-logs", "ppp-prod-c"], "agente_padrao": "c-orquestrador"},
-    "controlador-dr": {"conta": "ppp-dr", "grupos": ["ppp-leitura", "ppp-restrito", "ppp-prod-c"], "agente_padrao": "controlador-dr"},
-    "revisor": {"conta": "ppp-rev", "grupos": ["ppp-leitura", "ppp-restrito", "ppp-logs"], "agente_padrao": "revisor-independente"},
-    "agentes": {"conta": "ppp-agente", "grupos": ["ppp-leitura", "ppp-prod-p"], "agente_padrao": null}
-  },
-  "areas": [
-    {"caminho": ".", "dono": "ppp-admin", "grupo": "ppp-leitura", "modo_dir": "0750", "modo_arq": "0640",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": [],
-     "nota": "padrão para tudo que não tem área própria: governanca, scripts, testes, .claude, arquitetura, referencias, projects, dados/processados"},
-    {"caminho": "registros", "dono": "ppp-guardiao", "grupo": "ppp-leitura", "modo_dir": "0750", "modo_arq": "0640",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": [],
-     "nota": "só o guardião (serviço, conta ppp-guardiao) grava; nenhum papel de sessão grava"},
-    {"caminho": "dados/entrada", "dono": "ppp-admin", "grupo": "ppp-restrito", "modo_dir": "0750", "modo_arq": "0640",
-     "leitura": ["controlador-dr", "revisor"], "escrita": [], "sigilosa": true},
-    {"caminho": "dados/restritos", "dono": "ppp-admin", "grupo": "ppp-restrito", "modo_dir": "0750", "modo_arq": "0640",
-     "leitura": ["controlador-dr", "revisor"], "escrita": [], "sigilosa": true},
-    {"caminho": "logs", "dono": "ppp-admin", "grupo": "ppp-logs", "modo_dir": "0751", "modo_arq": "0640",
-     "leitura": ["coordenador", "revisor"], "escrita": [], "sigilosa": true, "logs_por_papel": true,
-     "nota": "0751: 'outros' só atravessam (abrem o PRÓPRIO log por nome para anexar); não listam nem leem; cada log é só-anexar (chattr +a)"},
-    {"caminho": "produtos", "dono": "ppp-admin", "grupo": "ppp-leitura", "modo_dir": "0755", "modo_arq": "0644",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": []},
-    {"caminho": "produtos/C", "dono": "ppp-admin", "grupo": "ppp-prod-c", "modo_dir": "2775", "modo_arq": "0664",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": ["coordenador", "controlador-dr"]},
-    {"caminho": "produtos/P1", "dono": "ppp-admin", "grupo": "ppp-prod-p", "modo_dir": "2775", "modo_arq": "0664",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": ["agentes"]},
-    {"caminho": "produtos/P2", "dono": "ppp-admin", "grupo": "ppp-prod-p", "modo_dir": "2775", "modo_arq": "0664",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": ["agentes"]},
-    {"caminho": "produtos/P3", "dono": "ppp-admin", "grupo": "ppp-prod-p", "modo_dir": "2775", "modo_arq": "0664",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": ["agentes"]},
-    {"caminho": "produtos/P4", "dono": "ppp-admin", "grupo": "ppp-prod-p", "modo_dir": "2775", "modo_arq": "0664",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": ["agentes"]},
-    {"caminho": "produtos/P5", "dono": "ppp-admin", "grupo": "ppp-prod-p", "modo_dir": "2775", "modo_arq": "0664",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": ["agentes"]},
-    {"caminho": "produtos/P6", "dono": "ppp-admin", "grupo": "ppp-prod-p", "modo_dir": "2775", "modo_arq": "0664",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": ["agentes"]},
-    {"caminho": "produtos/P7", "dono": "ppp-admin", "grupo": "ppp-prod-p", "modo_dir": "2775", "modo_arq": "0664",
-     "leitura": ["coordenador", "controlador-dr", "revisor", "agentes"], "escrita": ["agentes"]}
+ "versao": 2,
+ "descricao": "Papéis de sessão = contas de SO distintas (uma por agente P1-P7). A matriz de leitura/escrita é realizada por dono, grupo e modo dos arquivos (DAC), não por hook. Ids sintéticos para homologação; em produção, trocar pelos ids das contas reais criadas pelo administrador (`isolamento.py contas`).",
+ "home_base": "/var/lib/ppp-betim/homes",
+ "servicos": {
+  "dir": "/run/ppp-betim",
+  "logd_socket": "/run/ppp-betim/log/logd.sock",
+  "gateway_socket": "/run/ppp-betim/gw/gateway.sock",
+  "conta_log": "ppp-guardiao",
+  "conta_rede": "ppp-rede",
+  "grupo_socket": "ppp-leitura",
+  "grupos_contas_servico": [
+   "ppp-leitura"
   ]
+ },
+ "rede": {
+  "upstream": "https://api.anthropic.com",
+  "caminhos_permitidos": [
+   "/v1/messages",
+   "/v1/messages/count_tokens"
+  ]
+ },
+ "contas": {
+  "ppp-admin": 61000,
+  "ppp-guardiao": 61010,
+  "ppp-rede": 61030,
+  "ppp-coord": 61001,
+  "ppp-dr": 61002,
+  "ppp-rev": 61003,
+  "ppp-p1": 61021,
+  "ppp-p2": 61022,
+  "ppp-p3": 61023,
+  "ppp-p4": 61024,
+  "ppp-p5": 61025,
+  "ppp-p6": 61026,
+  "ppp-p7": 61027
+ },
+ "grupos": {
+  "ppp-leitura": 61100,
+  "ppp-restrito": 61101,
+  "ppp-logs": 61102,
+  "ppp-dr-leitura": 61105
+ },
+ "papeis": {
+  "coordenador": {
+   "conta": "ppp-coord",
+   "grupos": [
+    "ppp-leitura",
+    "ppp-logs",
+    "ppp-dr-leitura"
+   ],
+   "agente_padrao": "c-orquestrador"
+  },
+  "controlador-dr": {
+   "conta": "ppp-dr",
+   "grupos": [
+    "ppp-leitura",
+    "ppp-restrito",
+    "ppp-dr-leitura"
+   ],
+   "agente_padrao": "controlador-dr"
+  },
+  "revisor": {
+   "conta": "ppp-rev",
+   "grupos": [
+    "ppp-leitura",
+    "ppp-restrito",
+    "ppp-logs",
+    "ppp-dr-leitura"
+   ],
+   "agente_padrao": "revisor-independente"
+  },
+  "p1": {
+   "conta": "ppp-p1",
+   "grupos": [
+    "ppp-leitura"
+   ],
+   "agente_padrao": "p1-diagnostico"
+  },
+  "p2": {
+   "conta": "ppp-p2",
+   "grupos": [
+    "ppp-leitura"
+   ],
+   "agente_padrao": "p2-engenharia"
+  },
+  "p3": {
+   "conta": "ppp-p3",
+   "grupos": [
+    "ppp-leitura"
+   ],
+   "agente_padrao": "p3-mercado"
+  },
+  "p4": {
+   "conta": "ppp-p4",
+   "grupos": [
+    "ppp-leitura"
+   ],
+   "agente_padrao": "p4-modelagem"
+  },
+  "p5": {
+   "conta": "ppp-p5",
+   "grupos": [
+    "ppp-leitura"
+   ],
+   "agente_padrao": "p5-juridico"
+  },
+  "p6": {
+   "conta": "ppp-p6",
+   "grupos": [
+    "ppp-leitura"
+   ],
+   "agente_padrao": "p6-participacao"
+  },
+  "p7": {
+   "conta": "ppp-p7",
+   "grupos": [
+    "ppp-leitura"
+   ],
+   "agente_padrao": "p7-licitacao"
+  }
+ },
+ "areas": [
+  {
+   "caminho": ".",
+   "dono": "ppp-admin",
+   "grupo": "ppp-leitura",
+   "modo_dir": "0750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [],
+   "nota": "padrão para tudo sem área própria: governanca, scripts, testes, .claude, arquitetura, referencias, projects, dados/processados"
+  },
+  {
+   "caminho": "registros",
+   "dono": "ppp-guardiao",
+   "grupo": "ppp-leitura",
+   "modo_dir": "0750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [],
+   "nota": "só o guardião (serviço) grava; nenhum papel de sessão grava"
+  },
+  {
+   "caminho": "dados/entrada",
+   "dono": "ppp-admin",
+   "grupo": "ppp-restrito",
+   "modo_dir": "0750",
+   "modo_arq": "0640",
+   "leitura": [
+    "controlador-dr",
+    "revisor"
+   ],
+   "escrita": [],
+   "sigilosa": true
+  },
+  {
+   "caminho": "dados/restritos",
+   "dono": "ppp-admin",
+   "grupo": "ppp-restrito",
+   "modo_dir": "0750",
+   "modo_arq": "0640",
+   "leitura": [
+    "controlador-dr",
+    "revisor"
+   ],
+   "escrita": [],
+   "sigilosa": true
+  },
+  {
+   "caminho": "logs",
+   "dono": "ppp-guardiao",
+   "grupo": "ppp-logs",
+   "modo_dir": "0750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "revisor"
+   ],
+   "escrita": [],
+   "sigilosa": true,
+   "logs_de_servico": true,
+   "nota": "nenhum papel grava: o serviço de log (conta ppp-guardiao) acrescenta registros encadeados por hash; arquivos só-anexar (chattr +a)"
+  },
+  {
+   "caminho": "produtos",
+   "dono": "ppp-admin",
+   "grupo": "ppp-leitura",
+   "modo_dir": "0750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": []
+  },
+  {
+   "caminho": "produtos/C",
+   "dono": "ppp-coord",
+   "grupo": "ppp-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [
+    "coordenador"
+   ]
+  },
+  {
+   "caminho": "produtos/DR",
+   "dono": "ppp-admin",
+   "grupo": "ppp-dr-leitura",
+   "modo_dir": "0750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor"
+   ],
+   "escrita": [],
+   "sigilosa": true,
+   "nota": "casca do administrador: o dono da subpasta gravável não consegue expor a saída a quem não atravessa esta pasta"
+  },
+  {
+   "caminho": "produtos/DR/saida",
+   "dono": "ppp-dr",
+   "grupo": "ppp-dr-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor"
+   ],
+   "escrita": [
+    "controlador-dr"
+   ],
+   "nota": "saída do controlador DR (derivada de dados restritos); a conta do DR é dona só desta subpasta"
+  },
+  {
+   "caminho": "produtos/P1",
+   "dono": "ppp-p1",
+   "grupo": "ppp-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [
+    "p1"
+   ]
+  },
+  {
+   "caminho": "produtos/P2",
+   "dono": "ppp-p2",
+   "grupo": "ppp-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [
+    "p2"
+   ]
+  },
+  {
+   "caminho": "produtos/P3",
+   "dono": "ppp-p3",
+   "grupo": "ppp-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [
+    "p3"
+   ]
+  },
+  {
+   "caminho": "produtos/P4",
+   "dono": "ppp-p4",
+   "grupo": "ppp-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [
+    "p4"
+   ]
+  },
+  {
+   "caminho": "produtos/P5",
+   "dono": "ppp-p5",
+   "grupo": "ppp-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [
+    "p5"
+   ]
+  },
+  {
+   "caminho": "produtos/P6",
+   "dono": "ppp-p6",
+   "grupo": "ppp-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [
+    "p6"
+   ]
+  },
+  {
+   "caminho": "produtos/P7",
+   "dono": "ppp-p7",
+   "grupo": "ppp-leitura",
+   "modo_dir": "2750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+   ],
+   "escrita": [
+    "p7"
+   ]
+  }
+ ]
 }

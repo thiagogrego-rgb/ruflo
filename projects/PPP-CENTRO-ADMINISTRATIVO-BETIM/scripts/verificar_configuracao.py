@@ -20,8 +20,10 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[1]
 MANIFESTO = "governanca/manifesto-controles.json"
 OBRIGATORIOS = ("Edit(/dados/**)", "Edit(/registros/**)", "Edit(/governanca/**)", "Edit(/.claude/**)",
-                "Edit(/scripts/**)", "Edit(/testes/**)", "Edit(/logs/**)")
-FERRAMENTAS_DO_GUARDA = ("Write", "Edit", "MultiEdit", "NotebookEdit", "Read", "Grep", "Glob", "Skill", "Bash", "mcp__")
+                "Edit(/scripts/**)", "Edit(/testes/**)", "Edit(/logs/**)", "WebFetch", "WebSearch")
+FERRAMENTAS_DO_GUARDA = ("Write", "Edit", "MultiEdit", "NotebookEdit", "Read", "Grep", "Glob", "Skill", "Bash", "mcp__",
+                         "Task", "Agent", "WebFetch", "WebSearch", "SendMessage", "EnterWorktree", "ExitWorktree", "Monitor")
+FERRAMENTAS_DE_AGENTE = {"Read", "Grep", "Glob", "Write", "Skill"}      # nenhum agente tem terminal, rede, delegação nem conectores
 
 
 def sha256(caminho):
@@ -30,8 +32,9 @@ def sha256(caminho):
 
 def arquivos_controlados(raiz):
     fixos = [".claude/settings.json", "governanca/matriz-agentes.json",
-             "scripts/verificar_configuracao.py", "scripts/iniciar_sessao.py", "scripts/isolamento.py", "scripts/jaula.py",
-             "governanca/papeis.json"]
+             "scripts/verificar_configuracao.py", "scripts/iniciar_sessao.py", "scripts/isolamento.py", "scripts/isolamento_base.py", "scripts/isolamento_so.py",
+             "scripts/jaula.py", "scripts/logd.py", "scripts/gateway.py", "scripts/entrada_jaula.py",
+             "governanca/papeis.json", "governanca/sandbox-recomendado.json"]
     fixos += sorted(p.relative_to(raiz).as_posix() for p in (raiz / ".claude/hooks").glob("*.py"))
     agentes = sorted(p.relative_to(raiz).as_posix() for p in (raiz / ".claude/agents").glob("*.md"))
     skills = sorted(p.relative_to(raiz).as_posix() for p in (raiz / ".claude/skills").glob("*/SKILL.md"))
@@ -75,6 +78,27 @@ def verificar(raiz=RAIZ):
                             problemas.append(f"matcher do guarda não cobre {ferramenta}")
     except (KeyError, TypeError, AttributeError) as erro:
         problemas.append(f"estrutura de settings.json inesperada ({type(erro).__name__})")
+    pasta_agentes = raiz / ".claude/agents"
+    if not pasta_agentes.is_dir():
+        problemas.append("pasta .claude/agents ausente (sem lista de ferramentas por agente)")
+    else:
+        try:
+            papeis = json.loads((raiz / "governanca/papeis.json").read_text(encoding="utf-8"))["papeis"]
+            matriz = json.loads((raiz / "governanca/matriz-agentes.json").read_text(encoding="utf-8"))["agentes"]
+            for nome, papel in papeis.items():
+                padrao = papel.get("agente_padrao")
+                if not (pasta_agentes / f"{padrao}.md").is_file() or padrao not in matriz:
+                    problemas.append(f"papel {nome}: agente_padrao '{padrao}' ausente em .claude/agents ou na matriz")
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            problemas.append("não foi possível cruzar papeis.json com os agentes e a matriz")
+    for agente in sorted(pasta_agentes.glob("*.md")):
+        linha = next((x for x in agente.read_text(encoding="utf-8").splitlines() if x.startswith("tools:")), None)
+        if linha is None:
+            problemas.append(f"agente {agente.stem} sem lista 'tools:' (herdaria TODAS as ferramentas)")
+            continue
+        fora = {x.strip() for x in linha[len("tools:"):].split(",") if x.strip()} - FERRAMENTAS_DE_AGENTE
+        if fora:
+            problemas.append(f"agente {agente.stem} com ferramentas fora do escopo: {sorted(fora)}")
     if cfg.get("disableAllHooks"):
         problemas.append("disableAllHooks ligado em settings.json")
     local = raiz / ".claude/settings.local.json"

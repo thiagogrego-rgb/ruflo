@@ -26,6 +26,7 @@
         "./dados/entrada",
         "./dados/restritos",
         "./logs",
+        "./produtos/DR",
         "./.claude/settings.local.json"
       ]
     }

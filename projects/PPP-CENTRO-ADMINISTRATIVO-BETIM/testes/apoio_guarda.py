@@ -1,5 +1,6 @@
 """Apoio dos testes do guarda (GOV-05/06): projeto falso em diretório temporário com o guarda e a matriz reais."""
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -25,21 +26,21 @@ class ProjetoFalso:
         for modulo in sorted(HOOKS_ORIGEM.glob("*.py")):
             shutil.copy(modulo, self.raiz / ".claude" / "hooks" / modulo.name)
         shutil.copy(MATRIZ_ORIGEM, self.raiz / "governanca" / "matriz-agentes.json")
-        for d in ("produtos/P3", "produtos/P4", "produtos/C", "registros/decisoes",
+        for d in ("produtos/P3", "produtos/P4", "produtos/C", "produtos/DR/saida", "registros/decisoes",
                   "dados/restritos", "dados/entrada", "scripts", "testes", "referencias"):
             (self.raiz / d).mkdir(parents=True)
         (self.raiz / "registros/decisoes/DEC-001.json").write_text("{}", encoding="utf-8")
         (self.raiz / "CLAUDE.md").write_text("x", encoding="utf-8")
         (self.raiz / "scripts/ok.py").write_text("print(1)", encoding="utf-8")
         (self.raiz / "logs").mkdir()
-        for arq in ("dados/restritos/r.txt", "dados/entrada/e.txt", "logs/l.log", "registros/decisoes/d.json"):
+        for arq in ("dados/restritos/r.txt", "dados/entrada/e.txt", "logs/l.log", "registros/decisoes/d.json", "produtos/DR/saida.txt"):
             (self.raiz / arq).write_text("x", encoding="utf-8")
         self.hook = self.raiz / ".claude" / "hooks" / "guarda_ferramentas.py"
 
     def chama(self, evento, bruto=None):
         entrada = bruto if bruto is not None else json.dumps(evento)
         r = subprocess.run([sys.executable, "-I", str(self.hook)], input=entrada, text=True,
-                           capture_output=True, cwd=self.raiz, timeout=30)
+                           capture_output=True, cwd=self.raiz, timeout=30, env=dict(os.environ, PPP_LOG_LEGADO="1"))
         return r.returncode, r.stdout, r.stderr
 
     def escrita(self, caminho, agente=None, ferramenta="Write", campo="file_path"):

@@ -5,7 +5,8 @@
         "produtos/C"
       ],
       "leitura_extra": [
-        "logs"
+        "logs",
+        "produtos/DR"
       ],
       "skills": [
         "apresentacao-padrao-ceabe",
@@ -16,11 +17,12 @@
     },
     "controlador-dr": {
       "escrita": [
-        "produtos/C"
+        "produtos/DR/saida"
       ],
       "leitura_extra": [
         "dados/entrada",
-        "dados/restritos"
+        "dados/restritos",
+        "produtos/DR"
       ],
       "skills": [
         "base-premissas",
@@ -128,7 +130,8 @@
       "leitura_extra": [
         "dados/entrada",
         "dados/restritos",
-        "logs"
+        "logs",
+        "produtos/DR"
       ],
       "skills": [
         "base-premissas",
@@ -141,6 +144,7 @@
     "dados/entrada",
     "dados/restritos",
     "logs",
+    "produtos/DR",
     ".claude/settings.local.json"
   ],
   "conectores_permitidos_sessao_principal": [],

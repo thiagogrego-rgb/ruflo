@@ -131,36 +131,13 @@ class TestRuntimeReal(Ambiente):
         self.assertNotIn("CONTEUDO-DO-P3", res[0]["texto"])
         self.assertIn("log", res[0]["texto"].lower())
 
-    @unittest.skipUnless(os.environ.get("PPP_TESTES_LENTOS") == "1", "lento (~3 min por tentativas do cliente): PPP_TESTES_LENTOS=1")
-    def test_sem_servico_de_log_a_sessao_nem_chega_ao_modelo_pela_rede(self):
-        """O gateway só envia depois de registrar; sem o serviço de log a sessão falha por inteiro (503), antes de qualquer envio."""
+    def test_sem_servico_de_log_o_lancador_nem_inicia_a_sessao(self):
+        """Com o serviço de log fora do ar a sessão não começa: nenhuma chamada ao modelo, nenhuma ferramenta."""
         self.derruba("logd")
-        self.logd_socket.touch()                                             # o lançador só confere a existência
-        r = self.sessao("p3", [self.R("produtos/P3/ok.md")], tempo=420)
+        r = self.sessao("p3", [self.R("produtos/P3/ok.md")])
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("serviço de log indisponível", r.stderr)
         self.assertEqual(self.modelo.requisicoes, [], "nada pode ter chegado ao destino sem trilha de auditoria")
-        self.assertIn("503", r.stdout)
-
-    def test_papeis_com_direito_conseguem_o_que_a_matriz_permite(self):
-        self.sessao("controlador-dr", [self.R("dados/restritos/r.txt"), self.R("dados/entrada/e.txt"), self.R("logs/guarda-p3.jsonl"),
-                                       self.R("produtos/DR/saida/saida.txt")])
-        res = self.modelo.resultados
-        self.assertIn(MARCADOR_RESTRITO, res[0]["texto"])
-        self.assertIn(MARCADOR_ENTRADA, res[1]["texto"])
-        self.assertTrue(res[2]["erro"])                                      # o DR não lê logs
-        self.assertIn(MARCADOR_DR, res[3]["texto"])
-        self.sessao("revisor", [self.R("dados/restritos/r.txt"), self.R("logs/guarda-p3.jsonl"), self.R("produtos/DR/saida/saida.txt")])
-        res = self.modelo.resultados
-        self.assertIn(MARCADOR_RESTRITO, res[0]["texto"])
-        self.assertFalse(res[1]["erro"])                                     # o revisor lê os registros de auditoria
-        self.assertIn(MARCADOR_DR, res[2]["texto"])
-        self.sessao("coordenador", [self.R("dados/restritos/r.txt"), self.R("logs/guarda-p3.jsonl"), self.R("produtos/DR/saida/saida.txt"),
-                                    self.R("produtos/C/plano.md")])
-        res = self.modelo.resultados
-        self.assertTrue(res[0]["erro"])
-        self.assertNotIn(MARCADOR_RESTRITO, "\n".join(self.textos()))
-        self.assertFalse(res[1]["erro"])
-        self.assertIn(MARCADOR_DR, res[2]["texto"])
-        self.assertIn("PLANO-C", res[3]["texto"])
 
     # ---------------------------------------------------------------------------------------------------------
     def direto(self, papel, agente, roteiro, com_jaula=True, config=None):

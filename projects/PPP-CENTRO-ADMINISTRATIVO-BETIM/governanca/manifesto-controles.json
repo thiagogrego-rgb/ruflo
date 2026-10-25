@@ -1,7 +1,7 @@
 {
   "arquivos": {
     ".claude/agents/c-orquestrador.md": "dffa89c24e5ddebb799f540ec4d6649589978567d0c7396657486cf953c5b8c2",
-    ".claude/agents/controlador-dr.md": "12f9abfab4a41eb90e120730772cb45939882b094e5f54d826f0bf402658e086",
+    ".claude/agents/controlador-dr.md": "f207848313694f59e1124aa97f5b939499896d9297eadbd670b85ce6f33bcd52",
     ".claude/agents/p1-diagnostico.md": "4e2098c3c8a8e98c5669876150851bc35835092fbecbb384459df8c7ac0e78d1",
     ".claude/agents/p2-engenharia.md": "fd38dc583b2bb2920fa55ea1251fa87760cd13099e81661058515604c9dc0914",
     ".claude/agents/p3-mercado.md": "fae7a9d7335b15b4b12b522db04cafee39e0312e1ea0a320e3c4f86889a514d8",
@@ -10,10 +10,10 @@
     ".claude/agents/p6-participacao.md": "313b42cf60c32fc3d244fb775bb9964d98f5569b44278962e333e71a06be7275",
     ".claude/agents/p7-licitacao.md": "93e1a11d484ff580fb42fee21a60c76fccf435560a440a8e07215c48129276aa",
     ".claude/agents/revisor-independente.md": "e8b626d9c9ecdda967f2bddf9a5e1155808bba6f3cd411aff17d62dd650c60b2",
-    ".claude/hooks/guarda_base.py": "e309c8acd92688420732b4b84a0f14b95cdbb2975e39ed7469851d94b891567d",
+    ".claude/hooks/guarda_base.py": "9e062363d1dd2d77777a0618bd2cee129c1312b4d5abbaf44f823ac8ae64994c",
     ".claude/hooks/guarda_bash.py": "d85a29c0698122cd5d80f0f32002dba87f78dee5fa77587a1e22c28be0559893",
-    ".claude/hooks/guarda_ferramentas.py": "58006827790cd6c5581e6ef8793e4da736fe00f07a5fb62ceabbb6ddf7b6315b",
-    ".claude/settings.json": "3d397163ec92808f53bcf0ce5d118bb7ab9a321a0a0c03b0138909fa5acf8124",
+    ".claude/hooks/guarda_ferramentas.py": "965638a9645dad773164df9da7badff9e33c96c7f2b69b76624ecbd1d161387c",
+    ".claude/settings.json": "d97db19d4bbb454e64f13f761aef6b37e6a72dac6334f2a86fda43128a2e98e6",
     ".claude/skills/analise-varejo-shopping/SKILL.md": "866fc2abc999c22c1fbcdad439878a841b09bbde39ca4ce3770a83ddd6697c71",
     ".claude/skills/apresentacao-padrao-ceabe/SKILL.md": "f0e4277e3e66848a9ba4d720c8ed755942b4ef1d41d33f06a2675c0d3ad82395",
     ".claude/skills/avaliacao-imobiliaria/SKILL.md": "a2083d2afeb518d11b1877a7cbdb51c01fa88fd09a869b8dc281e004904acd0f",
@@ -33,12 +33,18 @@
     ".claude/skills/ti-como-servico/SKILL.md": "caff471b7994513aaa388bb49b1141d2515edbcf26f432b81f484258f1816a2f",
     ".claude/skills/value-for-money/SKILL.md": "6bb24f2376c4a6206247ecbeafc892ca1b1a8b95917d6dda91019a4692d78875",
     ".claude/skills/verificacao-independente/SKILL.md": "0323ca8df07a007d19cc6ce59aa7ea20e96757f13ec339ca6d569ead313b5436",
-    "governanca/matriz-agentes.json": "1a7ce4542dab4ba6d2648f7d812a172cc24b4749d6b7b0d59b14047f3eb262b5",
-    "governanca/papeis.json": "c0d636ef1f8595918124d7418916096720c3ae3393442991f98ae41851bfd579",
-    "scripts/iniciar_sessao.py": "6046da15f58e4ab7b66e30cd07468d657577d8c17e6c79bad3663ee4eb2228e3",
-    "scripts/isolamento.py": "d5ed48c5d3b5891c9b79367b61a30fd24c563b8fbeed6968b58c7477d56a4806",
-    "scripts/jaula.py": "526d1fc2bc58354cdd432ae64549cb8e0f94eb3ffb7f482060bd1ae931dd69ea",
-    "scripts/verificar_configuracao.py": "91903433efab6a04bc0ead254e3104a9d66d664fda3a7ebbd6fdab23e0b6c7a3"
+    "governanca/matriz-agentes.json": "8cf0cbbb4a91aef38fd60aa531d44e484e699b145a40d46ff285a2c6c346de3b",
+    "governanca/papeis.json": "d06f10573a3f65843aa1a89e9ed569ea87ce6fafc070d86eb56a28ae6421f18d",
+    "governanca/sandbox-recomendado.json": "1889c61717f3e670b57455cfe53780b9a53aa09b4119a14a48b58a6906859289",
+    "scripts/entrada_jaula.py": "c7bf4334b7a53d93429ad61e2a73faed3da434f1e6eea5ee3e9bd8a1de2089fe",
+    "scripts/gateway.py": "7c4b0b7b8c9945e0fdfb1d5796fa5f5e324555ec2aaa024451c42346040b3ff4",
+    "scripts/iniciar_sessao.py": "5e069271b6290946fe298fc91f2c7c396b8253181865c3b22685246a7c411a75",
+    "scripts/isolamento.py": "19ee661613898e5042be95c9a10f669ef547e87b3a0df7268521f193e6faa2f5",
+    "scripts/isolamento_base.py": "80049194eec429e2f119b19f425d41c8df3fc14fa49066e41be436b58e3b8ddd",
+    "scripts/isolamento_so.py": "96166a79dea162eca07eb9cf0179d3b7b18488294771989aed166e7a1a111179",
+    "scripts/jaula.py": "68a671d67761054724761ffd3e5bd40b81a132ac0bc103c8d6949101bde0d57a",
+    "scripts/logd.py": "d125c5e9106beaaa3a32026dab1444aedb9cbd1970c533c5370d965a3d1d1a85",
+    "scripts/verificar_configuracao.py": "1ec2efb84f171424c7727be329ed7ddf24f518c0d1cbd3c8e972ccd5ddd1b14e"
   },
   "versao": 1
 }

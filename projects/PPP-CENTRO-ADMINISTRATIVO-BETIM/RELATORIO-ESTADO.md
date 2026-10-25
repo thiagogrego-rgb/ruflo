@@ -24,6 +24,10 @@
 - GOV-07: isolamento por contas de SO (DAC), jaula de montagem (bwrap) e lançador por papel; revisão independente
   estática; `claude` real como não-root NÃO EXECUTADO. Documentos reais NÃO liberados
   (`governanca/GOV-07-isolamento-por-so.md`).
+- GOV-08: riscos críticos de GOV-07: `aplicar` sem seguir links, credencial fora da sessão (gateway de rede em namespace
+  vazio), logs gravados só por serviço com cadeia de hash, pasta própria do DR, uma conta por agente P1-P7, `deny` de
+  leitura por papel e cobertura de ferramentas testada com o `claude` real contra um modelo falso roteirizado. Documentos
+  reais NÃO liberados (`governanca/GOV-08-riscos-criticos.md`).
 - Decisões gerais e publicação: bloqueadas.
 - Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
   infraestrutura onde o agente não tenha privilégio administrativo

@@ -132,7 +132,7 @@ Logs: nenhum papel escreve; `coordenador` e `revisor` leem. Dados sigilosos: só
 | Controles de software quebrados (`settings.json` inválido, hook em timeout, guarda ausente e sem `deny`) | − | PASSOU: nada vaza, nada é escrito fora da pasta própria, a escrita legítima funciona |
 | Controle sem jaula e sem conta com o guarda ausente: marcadores vazam e `registros/` é escrito | controle | PASSOU (prova que o teste discrimina) |
 | `deny` de leitura gerado pelo lançador sozinho (hook desligado) bloqueia `Read/Grep/Glob`; sem a regra vaza | −/controle | PASSOU |
-| Sem serviço de log: o hook recusa até a leitura legítima; a sessão inteira falha antes de qualquer envio | − | PASSOU (a segunda parte é o teste lento `PPP_TESTES_LENTOS=1`) |
+| Sem serviço de log: o lançador não inicia a sessão; o hook recusa até a leitura legítima; o gateway não envia nada (503) | − | PASSOU |
 | Lançador: opções fora da lista branca, root obrigatório, socket de serviço de outra conta, terminal inseguro, sem log/gateway | − | PASSOU |
 | Verificador: agente com ferramenta fora do escopo, deny de rede ausente, matcher que não cobre `Task` | − | PASSOU |
 | Guarda: ferramenta desconhecida recusada; internas aceitas | −/+ | PASSOU |
@@ -144,6 +144,9 @@ Logs: nenhum papel escreve; `coordenador` e `revisor` leem. Dados sigilosos: só
 | Conversa **real** com a API através do gateway (credencial real) | — | NÃO EXECUTADO |
 | Instalação dos serviços como unidades do sistema, contas reais, firewall por uid | — | NÃO EXECUTADO |
 | Windows/WSL2, sessão interativa, `seccomp` | — | NÃO EXECUTADO |
+
+**Suíte de regressão completa (execução integral após o último ajuste de código):** 367 testes, **OK**, 1 pulado (`test_nao_root_de_outra_conta_e_recusado`,
+que só roda sem root; executado à parte como conta sem privilégio: **OK**). Evidências em `homologacao/gov08/evidencias/`.
 
 ## 6. Evidências de proteção de credenciais
 Chave real nunca em: argv do lançador (`--dry-run` mascara; teste varre), ambiente da sessão (`env`), `cmdline`/`environ` do

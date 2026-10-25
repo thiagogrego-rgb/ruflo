@@ -31,6 +31,9 @@ from guarda_base import *  # noqa: E402,F401,F403
 from guarda_base import _prefixo_estatico, _sigilosas_tocadas  # noqa: E402,F401
 from guarda_bash import decide_bash  # noqa: E402
 
+FERRAMENTAS_INTERNAS = {"TodoWrite", "ToolSearch", "TaskCreate", "TaskGet", "TaskList", "TaskUpdate", "ExitPlanMode", "EnterPlanMode",
+                        "AskUserQuestion"}     # sem E/S de arquivo nem de rede; todo o resto é recusado (fail-closed)
+
 TEMPO_MAXIMO = min(10.0, float(os.environ.get("GUARDA_TEMPO_MAXIMO", 10)))             # segundos; o timeout do Claude Code é fail-ABERTO (medido), então ficamos bem abaixo
 
 def decide_escrita(evento, matriz):
@@ -46,8 +49,9 @@ def decide_escrita(evento, matriz):
     if agente:
         if agente not in matriz:
             raise Recusa(f"agente '{agente}' fora da matriz não grava arquivos")
-        if f"{partes[0]}/{partes[1]}" not in matriz[agente].get("escrita", []):
-            raise Recusa(f"agente '{agente}' não grava em {partes[0]}/{partes[1]}")
+        caminho_rel = "/".join(partes)
+        if not any(caminho_rel.startswith(destino + "/") for destino in matriz[agente].get("escrita", [])):
+            raise Recusa(f"agente '{agente}' não grava em {'/'.join(partes[:-1])}")
     return "/".join(partes)
 
 def decide_leitura(evento):
@@ -76,7 +80,7 @@ def decide_leitura(evento):
         return None                                # sessão principal: fora do projeto segue o fluxo de permissões
     tocadas = _sigilosas_tocadas(partes, sigilosas, liberadas)
     if tocadas:
-        permitido = "informe um caminho dentro de produtos/, registros/, governanca/, arquitetura/, referencias/ ou .claude/skills"
+        permitido = "informe um caminho dentro de produtos/<sua pasta>, produtos/C, registros/, governanca/, arquitetura/, referencias/ ou .claude/skills"
         raise Recusa(f"leitura de área sigilosa não liberada para este agente ({', '.join(tocadas)}); {permitido}")
     return "/".join(partes) or "."
 
@@ -116,12 +120,26 @@ def decide(evento):
         if ferramenta not in carregar_politica()[3]:
             raise Recusa(f"conector '{ferramenta}' não consta de conectores_permitidos_sessao_principal")
         return ferramenta
-    return None
+    if ferramenta in FERRAMENTAS_INTERNAS:
+        return None
+    raise Recusa(f"ferramenta '{ferramenta}' fora do escopo deste projeto (rede, delegação e demais não são autorizadas)")
 
 def _estouro():
     print("GOV-05: tempo interno do guarda esgotado; operação recusada", file=sys.stderr)
     sys.stderr.flush()
     os._exit(2)
+
+def _recusa_final(mensagem):
+    print(mensagem, file=sys.stderr)
+    sys.stderr.flush()
+    os._exit(2)
+
+def _tentar_registrar(evento, decisao, motivo, alvo=None):
+    """Registra sem nunca deixar uma exceção virar código de saída diferente de 2 (só o 2 bloqueia no Claude Code)."""
+    try:
+        return registrar(evento, decisao, motivo, alvo)
+    except BaseException:
+        return False
 
 def main():
     evento = None
@@ -133,26 +151,33 @@ def main():
         alvo = decide(evento)
     except Consulta as erro:
         if isinstance(evento, dict) and evento.get("permission_mode") == "bypassPermissions":
-            registrar(evento, "recusado", f"{erro} (modo bypassPermissions: sem consulta humana)")
+            _tentar_registrar(evento, "recusado", f"{erro} (modo bypassPermissions: sem consulta humana)")
             print(f"GOV-05: operação recusada — {erro}", file=sys.stderr)
             return 2
-        registrar(evento, "consulta-humana", str(erro))
+        if not _tentar_registrar(evento, "consulta-humana", str(erro)) and log_obrigatorio():
+            print("GOV-08: serviço de log indisponível; operação recusada", file=sys.stderr)
+            return 2
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": "PreToolUse", "permissionDecision": "ask",
             "permissionDecisionReason": f"GOV-05: {erro}; confirmação humana necessária"}}))
         return 0
     except Recusa as erro:
-        registrar(evento, "recusado", str(erro))
+        _tentar_registrar(evento, "recusado", str(erro))
         print(f"GOV-05: operação recusada — {erro}", file=sys.stderr)
         return 2
-    except Exception as erro:       # falha interna: recusa (fail-closed)
-        registrar(evento, "recusado", f"falha interna: {type(erro).__name__}")
-        print(f"GOV-05: falha interna do guarda ({type(erro).__name__}); operação recusada",
-              file=sys.stderr)
+    except BaseException as erro:       # falha interna: recusa (fail-closed)
+        _tentar_registrar(evento, "recusado", f"falha interna: {type(erro).__name__}")
+        print(f"GOV-05: falha interna do guarda ({type(erro).__name__}); operação recusada", file=sys.stderr)
         return 2
-    if alvo is not None:
-        registrar(evento, "permitido", "ok", alvo)
+    if not _tentar_registrar(evento, "permitido", "ok", alvo) and log_obrigatorio():
+        print("GOV-08: serviço de log indisponível; operação recusada (sem trilha, sem execução)", file=sys.stderr)
+        return 2
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException:
+        _recusa_final("GOV-08: falha inesperada no guarda; operação recusada")

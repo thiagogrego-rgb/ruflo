@@ -20,13 +20,17 @@
       "Edit(/*.md)",
       "Edit(/*.txt)",
       "Edit(/*.lock)",
-      "Edit(/.gitignore)"
+      "Edit(/.gitignore)",
+      "WebFetch",
+      "WebSearch",
+      "Task",
+      "Agent"
     ]
   },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|Skill|Bash|mcp__.*",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
