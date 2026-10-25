@@ -392,15 +392,18 @@ FONTES = (
     "scripts/piloto_cenarios.py",
     "scripts/piloto_falhas.py",
     "scripts/piloto.py",
+    "scripts/integracao_chat.py",
     "governanca/papeis.json",
     "governanca/GOV-07-isolamento-por-so.md",
     "governanca/GOV-08-riscos-criticos.md",
+    "governanca/GOV-09-piloto-controlado.md",
     "testes/test_isolamento.py",
     "testes/apoio_servicos.py",
     "testes/modelo_falso.py",
     "testes/test_servicos.py",
     "testes/test_runtime.py",
     "testes/test_piloto.py",
+    "testes/test_integracao_chat.py",
     "testes/test_configuracao.py",
 )
 
@@ -876,6 +879,10 @@ class TestEstrutura(unittest.TestCase):
   vazio), logs gravados só por serviço com cadeia de hash, pasta própria do DR, uma conta por agente P1-P7, `deny` de
   leitura por papel e cobertura de ferramentas testada com o `claude` real contra um modelo falso roteirizado. Documentos
   reais NÃO liberados (`governanca/GOV-08-riscos-criticos.md`).
+- GOV-09: piloto controlado de LABORATÓRIO (contas reais, serviços supervisionados, duas rodadas reprodutíveis, falha e
+  recuperação, âncoras de log) com modelo simulado; chamada real à API NÃO EXECUTADA (sem credencial humana); homologação
+  institucional NÃO realizada; integração com o Claude Chat NÃO verificada (sem acesso). Documentos reais NÃO liberados
+  (`governanca/GOV-09-piloto-controlado.md`).
 - Decisões gerais e publicação: bloqueadas.
 - Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
   infraestrutura onde o agente não tenha privilégio administrativo
