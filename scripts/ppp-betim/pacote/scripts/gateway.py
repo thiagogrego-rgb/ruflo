@@ -197,6 +197,22 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(corpo)
 
+    def _recusar(self, codigo, texto):
+        """Recusa sem encaminhar. Drena (limitado) o corpo declarado para o cliente receber o STATUS e não um reset de conexão."""
+        self._responder(codigo, texto)
+        try:
+            self.connection.settimeout(1.0)
+            declarado = self.headers.get("Content-Length", "")
+            falta = min(int(declarado), 65536) if declarado.isdigit() else 0
+            fim = time.monotonic() + 1.0
+            while falta > 0 and time.monotonic() < fim:
+                bloco = self.rfile.read(min(falta, 4096))
+                if not bloco:
+                    break
+                falta -= len(bloco)
+        except (OSError, ValueError):
+            pass
+
     def _ler_exato(self, n, limite):
         """Lê exatamente n bytes em blocos, com prazo TOTAL (o gotejamento não prende o slot)."""
         partes, falta = [], n
@@ -253,24 +269,24 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
         caminho = partes.path if partes else bruto[:200]
         if papel is None:
             self._auditar("desconhecido", "negado", motivo="uid sem papel", metodo=self.command, caminho=caminho[:200])
-            return self._responder(403, "chamador não autorizado")
+            return self._recusar(403, "chamador não autorizado")
         valido = (partes is not None and self.command == "POST" and CAMINHO_SEGURO.match(caminho) and ".." not in caminho.split("/")
                   and caminho in self.server.permitidos)
         if not valido:
             self._auditar(papel, "negado", motivo="destino ou método fora da lista", metodo=self.command, caminho=caminho[:200])
-            return self._responder(403, "destino não permitido pelo gateway")
+            return self._recusar(403, "destino não permitido pelo gateway")
         if not self.server.taxa[papel].permite():
             n = self.server.taxa[papel].resumo_devido()
             if n:
                 self._auditar(papel, "negado", motivo=f"taxa excedida ({n} requisições descartadas desde o último resumo)", metodo=self.command)
-            return self._responder(429, "taxa excedida")
+            return self._recusar(429, "taxa excedida")
         if not self.server.por_papel[papel].acquire(blocking=False):
             self._auditar(papel, "negado", motivo="limite de conexões do papel", metodo=self.command, caminho=caminho)
-            return self._responder(429, "limite de conexões do papel")
+            return self._recusar(429, "limite de conexões do papel")
         try:
             if not self.server.limite.acquire(blocking=False):
                 self._auditar(papel, "negado", motivo="limite global de conexões", metodo=self.command, caminho=caminho)
-                return self._responder(429, "limite global de conexões")
+                return self._recusar(429, "limite global de conexões")
             try:
                 self._encaminhar(papel, caminho, partes, inicio)
             finally:

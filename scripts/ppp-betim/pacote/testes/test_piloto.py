@@ -297,6 +297,18 @@ class TestGatewayTLS(Ambiente):
         self.assertTrue(cab["Proxy-Authorization"].startswith("Basic "))
 
 
+@PULAR
+class TestRejeicaoSemReset(Ambiente):
+    """Achado do piloto (rodada 2, F6): recusa com corpo não lido fazia o cliente receber reset em vez do status."""
+
+    def test_recusas_com_corpo_grande_chegam_como_status_e_nao_como_reset(self):
+        self.sobe_logd()
+        self.sobe_gateway()
+        for i in range(25):
+            status, _ = self.requisicao_como("p3", caminho="/v1/models", corpo=b"x" * 60000)
+            self.assertEqual(status, 403, f"tentativa {i}")
+
+
 # ------------------------------------------------------------------------------------------------ ambiente do piloto
 class TestAmbiente(unittest.TestCase):
     def setUp(self):
