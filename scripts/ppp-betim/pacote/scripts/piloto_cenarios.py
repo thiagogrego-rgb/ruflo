@@ -116,7 +116,7 @@ def s01_usuario_sem_privilegio(ctx):
             campos[k] = v.strip()
         ambiente = (alvo / "environ").read_bytes().decode(errors="replace")
         rede_sessao = os.readlink(alvo / "ns/net")
-        rede_host = os.readlink("/proc/1/ns/net")
+        rede_host = os.readlink("/proc/self/ns/net")
         p.wait(timeout=60)
     finally:
         ctx.modelo.atraso = 0.0
@@ -242,8 +242,14 @@ def conecta(h, p):
     finally: s.close()
 r["internet_1.1.1.1:443"] = conecta("1.1.1.1", 443)
 r["loopback_do_host_porta_do_modelo"] = conecta("127.0.0.1", int(os.environ["PORTA_DO_MODELO"]))
-try: socket.getaddrinfo("api.anthropic.com", 443); r["dns"] = True
-except OSError: r["dns"] = False
+try:
+    ip = socket.getaddrinfo("api.anthropic.com", 443, socket.AF_INET)[0][4][0]      # pode vir do /etc/hosts: arquivo estático, não consulta DNS
+except OSError:
+    ip = None
+r["ip_do_provedor_alcancavel"] = conecta(ip, 443) if ip else False
+u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); u.settimeout(3)
+try: u.connect(("8.8.8.8", 53)); u.send(b"x"); r["servidor_dns_alcancavel"] = True
+except OSError: r["servidor_dns_alcancavel"] = False
 base = os.environ["ANTHROPIC_BASE_URL"]
 def pedido(metodo, caminho):
     try:
@@ -274,7 +280,7 @@ def s06_restricoes_de_rede(ctx):
         s = json.loads(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
         return resultado("S06", "Restrições de rede", False, {"sonda_executou": False}, {"stderr": r.stderr[-300:]})
-    ev = {"so_loopback": s["interfaces"] == ["lo"], "sem_internet": s["internet_1.1.1.1:443"] is False, "sem_dns": s["dns"] is False,
+    ev = {"so_loopback": s["interfaces"] == ["lo"], "sem_internet": s["internet_1.1.1.1:443"] is False, "sem_rota_ao_ip_do_provedor": s["ip_do_provedor_alcancavel"] is False, "sem_acesso_a_servidor_dns": s["servidor_dns_alcancavel"] is False,
           "sem_acesso_ao_loopback_do_host": s["loopback_do_host_porta_do_modelo"] is False, "gateway_aceita_messages": s["via_gateway_post_messages"] == 200,
           "gateway_recusa_models_get_e_files": s["via_gateway_post_models"] == 403 and s["via_gateway_get_messages"] == 403 and s["via_gateway_post_files"] == 403}
     return resultado("S06", "Restrições de rede (namespace vazio + gateway)", all(ev.values()), ev, {"sonda": s})

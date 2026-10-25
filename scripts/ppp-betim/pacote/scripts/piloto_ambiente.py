@@ -129,9 +129,15 @@ def instalar(spec, origem_projeto, dados_sinteticos=None):
     PROJETO.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(PROJETO.parent, 0o755)
     shutil.copytree(origem, PROJETO, ignore=shutil.ignore_patterns("__pycache__", "*.zip", "logs"), symlinks=True)
-    for d in (ETC, VAR, ANCORAS):
+    for d in (ETC, VAR):
         d.mkdir(parents=True, exist_ok=True)
         os.chmod(d, 0o755)
+    if ANCORAS.is_dir() and any(ANCORAS.glob("ancora-*.json")):         # logs novos = série nova; as âncoras antigas são evidência e ficam guardadas
+        arquivo = VAR / "ancoras-arquivadas" / time.strftime("%Y%m%dT%H%M%S")
+        arquivo.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(ANCORAS), str(arquivo))
+    ANCORAS.mkdir(parents=True, exist_ok=True)
+    os.chmod(ANCORAS, 0o755)
     EVIDENCIAS.mkdir(parents=True, exist_ok=True)
     os.chmod(EVIDENCIAS, 0o700)
     run = Path(spec["servicos"]["dir"])

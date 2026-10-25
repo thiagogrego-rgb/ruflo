@@ -35,7 +35,7 @@ def s08_agentes_e_skills(ctx):
     """Para cada um dos dez papéis, o agente padrão roda de verdade (claude real, jaula, gateway) e usa as skills autorizadas,
     é recusado nas não autorizadas e nas de fora do projeto, escreve na própria área e é barrado em área alheia."""
     matriz, todas = _matriz(), _todas_as_skills()
-    por_agente, falhas = {}, []
+    por_agente, falhas, volatil = {}, [], {}
     for papel, dados in ctx.spec["papeis"].items():
         agente = dados["agente_padrao"]
         info = matriz[agente]
@@ -59,23 +59,32 @@ def s08_agentes_e_skills(ctx):
             pos += 1
         ok_ext = len(res) > pos and res[pos]["erro"]
         pos += 1
-        ok_esc, ok_alheia = True, False
+        ok_esc, ok_dac, texto_escrita = True, True, ""
         if escrita:
             alvo = AMB.PROJETO / escrita / f"SINTETICO-piloto-{papel}.md"
-            ok_esc = len(res) > pos and not res[pos]["erro"] and alvo.exists() and alvo.stat().st_uid == ctx.uid(papel)
+            texto_escrita = res[pos]["texto"][:90] if len(res) > pos else ""
+            # em modo headless (-p) a política padrão exige aprovação humana para gravar: sem ela a gravação TEM de ser negada
+            ok_esc = len(res) > pos and res[pos]["erro"] and not alvo.exists()
             pos += 1
+            probe = ("import sys,os\np=sys.argv[1]\nopen(p,'w').write('SINTETICO\\n'); os.unlink(p); print('GRAVOU')")
+            r_dac = ctx.como(papel, probe, args=[str(AMB.PROJETO / escrita / f"SINTETICO-dac-{papel}.tmp")])
+            ok_dac = r_dac.stdout.strip() == "GRAVOU"
         ok_alheia = len(res) > pos and res[pos]["erro"] and not (AMB.PROJETO / alheia / f"SINTETICO-invasao-{papel}.md").exists()
+        r_alh = ctx.como(papel, "import sys\ntry:\n open(sys.argv[1],'w'); print('GRAVOU')\nexcept OSError: print('NEGADO')",
+                         args=[str(AMB.PROJETO / alheia / f"SINTETICO-dac-alheia-{papel}.tmp")])
+        ok_dac_alheia = r_alh.stdout.strip() == "NEGADO"
         item = {"agente": agente, "skills_autorizadas_ok": ok_aut, "n_autorizadas": n, "skill_nao_autorizada_recusada": ok_proib,
-                "skill_externa_recusada": ok_ext, "escrita_na_propria_area": ok_esc, "escrita_em_area_alheia_barrada": ok_alheia,
-                "sessao_terminou": r.returncode == 0}
+                "skill_externa_recusada": ok_ext, "gravacao_headless_sem_aprovacao_negada": ok_esc, "so_grava_na_propria_area": ok_dac,
+                "so_nega_area_alheia": ok_dac_alheia, "escrita_em_area_alheia_barrada_pela_sessao": ok_alheia, "sessao_terminou": r.returncode == 0}
         por_agente[papel] = item
+        volatil[papel] = texto_escrita
         if not all(v for k, v in item.items() if k not in ("agente", "n_autorizadas")):
             falhas.append(papel)
     skills_exercitadas = sorted({s for dados in ctx.spec["papeis"].values() for s in set(matriz[dados["agente_padrao"]]["skills"]) | set(SKILLS_COMUNS)})
     ev = {"agentes_exercitados": len(por_agente), "agentes_esperados": 10, "skills_do_projeto": len(todas), "skills_exercitadas_por_algum_agente": len(skills_exercitadas),
           "skills_nunca_exercitadas": sorted(set(todas) - set(skills_exercitadas)), "por_agente": por_agente, "agentes_com_falha": falhas}
     ok = not falhas and len(por_agente) == 10 and len(todas) == 19
-    return resultado("S08", "Dez agentes e dezenove skills em execução real (modelo simulado)", ok, ev)
+    return resultado("S08", "Dez agentes e dezenove skills em execução real (modelo simulado)", ok, ev, {"resultado_da_gravacao_headless": volatil})
 
 
 # ------------------------------------------------------------------------------------------------ S09
@@ -100,6 +109,31 @@ def _sessao_ok(ctx, papel="p3"):
     return r.returncode == 0 and bool(res) and not res[0]["erro"]
 
 
+def _vivo(caminho):
+    import socket
+    sk = socket.socket(socket.AF_UNIX)
+    sk.settimeout(2)
+    try:
+        sk.connect(str(caminho))
+        return True
+    except OSError:
+        return False
+    finally:
+        sk.close()
+
+
+class _SupervisorPausado:
+    """Congela o supervisor (SIGSTOP) para a janela de queda ser determinística; retoma ao sair."""
+
+    def __enter__(self):
+        self.pid = json.loads(AMB.STATUS_SUPERVISOR.read_text())["pid"]
+        os.kill(self.pid, signal.SIGSTOP)
+        return self
+
+    def __exit__(self, *_):
+        os.kill(self.pid, signal.SIGCONT)
+
+
 def _mata(nome):
     pid = _pids().get(nome)
     if pid:
@@ -112,14 +146,16 @@ def _novo_pid(nome, antigo):
 
 
 def f1_servico_de_log_cai(ctx):
-    antigo = _mata("logd")
-    time.sleep(0.5)
-    recusou = subprocess.run(ctx.comando_sessao("p3"), capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL,
-                             env={"PATH": os.environ["PATH"]}).returncode != 0
-    if _novo_pid("logd", antigo):
-        _espera(lambda: logd_vivo(ctx), 15)
-    return {"nova_sessao_recusada_enquanto_cai": recusou, "supervisor_reiniciou": _pids().get("logd") not in (None, antigo),
-            "sessao_normal_apos_recuperacao": _sessao_ok(ctx),
+    with _SupervisorPausado():
+        antigo = _mata("logd")
+        time.sleep(0.5)
+        r = subprocess.run(ctx.comando_sessao("p3"), capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL, env={"PATH": os.environ["PATH"]})
+        recusou = r.returncode != 0 and "não responde" in (r.stderr + r.stdout)
+        socket_remanescente_nao_e_vivo = not _vivo(ctx.logd_socket)
+    _novo_pid("logd", antigo)
+    _espera(lambda: _vivo(ctx.logd_socket), 20)
+    return {"nova_sessao_recusada_enquanto_cai": recusou, "socket_remanescente_detectado_como_morto": socket_remanescente_nao_e_vivo,
+            "supervisor_reiniciou": _pids().get("logd") not in (None, antigo), "sessao_normal_apos_recuperacao": _sessao_ok(ctx),
             "cadeias_integras_apos": all(not logd.verificar(AMB.PROJETO / "logs" / n) for n in ISO.nomes_de_log(ctx.spec))}
 
 
@@ -137,14 +173,15 @@ def logd_vivo(ctx):
 
 
 def f2_gateway_cai(ctx):
-    antigo = _mata("gateway")
-    time.sleep(0.5)
-    r, _ = ctx.sessao("p3", [ctx.leitura("produtos/P3/SINTETICO-p3.md")], tempo=120)
-    falhou_sem_vazar = r.returncode != 0 or "is_error\": true" in r.stdout or "API Error" in r.stdout
-    vazou = any(m in (r.stdout + r.stderr) for m in ("chave-do-operador", "SINTETICO-CANARIO"))
+    with _SupervisorPausado():
+        antigo = _mata("gateway")
+        time.sleep(0.5)
+        r, _ = ctx.sessao("p3", [ctx.leitura("produtos/P3/SINTETICO-p3.md")], tempo=120)
+        falhou = r.returncode != 0 or "API Error" in r.stdout or '"is_error":true' in r.stdout.replace(" ", "")
+        vazou = any(m in (r.stdout + r.stderr) for m in ("chave-do-operador", "SINTETICO-CANARIO"))
     _novo_pid("gateway", antigo)
-    _espera(lambda: os.path.exists(ctx.gw_socket), 15)
-    return {"sessao_falha_enquanto_gateway_cai": falhou_sem_vazar, "nada_vazou_na_falha": not vazou,
+    _espera(lambda: _vivo(ctx.gw_socket), 20)
+    return {"sessao_falha_enquanto_gateway_cai": falhou, "nada_vazou_na_falha": not vazou,
             "supervisor_reiniciou": _pids().get("gateway") not in (None, antigo), "sessao_normal_apos_recuperacao": _sessao_ok(ctx)}
 
 
@@ -168,11 +205,11 @@ def f4_credencial_ausente_e_rotacao(ctx, chave_atual, chave_nova):
     AMB.revogar_credencial(motivo="teste F4 (laboratório)")
     antigo = _mata("gateway")
     time.sleep(2.5)
-    sem_gateway = _pids().get("gateway") is None and not os.path.exists(ctx.gw_socket)
+    sem_gateway = _pids().get("gateway") is None and not _vivo(ctx.gw_socket)
     r, _ = ctx.sessao("p3", [ctx.leitura("produtos/P3/SINTETICO-p3.md")], tempo=120)
     sessao_falha = r.returncode != 0 or "API Error" in r.stdout
     AMB.instalar_credencial(ctx.spec, chave_nova, "rotacao-sintetica-F4")
-    voltou = _espera(lambda: _pids().get("gateway") not in (None, antigo) and os.path.exists(ctx.gw_socket), 30)
+    voltou = _espera(lambda: _pids().get("gateway") not in (None, antigo) and _vivo(ctx.gw_socket), 30)
     ctx.modelo.requisicoes.clear()
     sessao_nova = voltou and _sessao_ok(ctx)
     chaves = {q["cabecalhos"].get("x-api-key") for q in ctx.modelo.requisicoes}
