@@ -58,16 +58,31 @@ def verificar_servico(caminho, uid_esperado, nome):
         raise SystemExit(f"Sessão NÃO iniciada: {nome} não é um socket da conta esperada (uid {uid_esperado}): {caminho}")
     if pai.st_uid not in (0, uid_esperado) or pai.st_mode & 0o022 or stat.S_ISLNK(pai.st_mode):
         raise SystemExit(f"Sessão NÃO iniciada: a pasta de {nome} pode ser alterada por outras contas: {os.path.dirname(caminho)}")
+    atual = os.path.dirname(os.path.realpath(caminho))              # e toda a cadeia de ancestrais até a raiz
+    while atual != "/":
+        atual = os.path.dirname(atual)
+        a = os.stat(atual)
+        if a.st_mode & 0o022 and not a.st_mode & 0o1000:
+            raise SystemExit(f"Sessão NÃO iniciada: ancestral de {nome} gravável por outras contas (sem sticky): {atual}")
 
 
-def _terminal_inseguro():
-    """True se o lançador tem terminal de controle e o kernel ainda permite TIOCSTI (a jaula não usa --new-session: quebraria o uso interativo)."""
-    try:
-        if Path("/proc/sys/dev/tty/legacy_tiocsti").read_text().strip() != "1":
-            return False
-    except OSError:
+def _terminal_inseguro(sysctl="/proc/sys/dev/tty/legacy_tiocsti", release=None, tem_terminal=None):
+    """True se há terminal de controle e o kernel permite TIOCSTI (a jaula não usa --new-session: quebraria o uso interativo).
+
+    Com o sysctl: valor 1 permite. Sem o sysctl: kernels anteriores a 6.2 sempre permitem; a partir do 6.2 a ausência do arquivo
+    significa que o recurso foi compilado fora (CONFIG_LEGACY_TIOCSTI=n)."""
+    tem_terminal = any(os.isatty(fd) for fd in (0, 1, 2)) if tem_terminal is None else tem_terminal
+    if not tem_terminal:
         return False
-    return any(os.isatty(fd) for fd in (0, 1, 2))
+    try:
+        return Path(sysctl).read_text().strip() == "1"
+    except OSError:
+        pass
+    try:
+        maior, menor = (int(x) for x in (release or os.uname().release).split(".")[:2])
+    except ValueError:
+        return True             # versão ilegível: não presume que é seguro
+    return (maior, menor) < (6, 2)
 
 
 def _limpar_temporarios_antigos(dias=30):
@@ -277,7 +292,7 @@ def main(argv):
         return 0
     os.chdir(cwd)
     os.umask(0o027)
-    os.closerange(3, 4096)              # nenhum descritor herdado do operador (ex.: --chave-fd) chega à sessão
+    os.closerange(3, 65536)              # nenhum descritor herdado do operador (ex.: --chave-fd) chega à sessão
     os.execve(comando[0], comando, dict(env))       # credenciais (modo aberto) só no ambiente herdado, nunca em argv
 
 

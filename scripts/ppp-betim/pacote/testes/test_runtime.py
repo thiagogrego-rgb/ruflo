@@ -355,6 +355,22 @@ class TestFerramentasDoAgente(unittest.TestCase):
         self.assertIn("matcher do guarda não cobre", problemas)
         self.assertIn("regra deny ausente: WebFetch", problemas)
 
+    def test_verificador_cruza_agente_padrao_dos_papeis_com_agentes_e_matriz(self):
+        import tempfile
+        import verificar_configuracao as V
+        tmp = Path(tempfile.mkdtemp(prefix="cruz-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        raiz = tmp / "p"
+        shutil.copytree(ROOT, raiz, ignore=shutil.ignore_patterns("__pycache__", "*.zip", "logs"))
+        V.gerar(raiz)
+        self.assertEqual(V.verificar(raiz), [])
+        (raiz / ".claude/agents/p5-juridico.md").unlink()
+        V.gerar(raiz)
+        self.assertTrue(any("agente_padrao 'p5-juridico'" in p for p in V.verificar(raiz)))
+        shutil.rmtree(raiz / ".claude/agents")
+        V.gerar(raiz)
+        self.assertTrue(any("pasta .claude/agents ausente" in p for p in V.verificar(raiz)))
+
     def test_guarda_recusa_ferramenta_desconhecida_e_aceita_as_internas(self):
         hooks = ROOT / ".claude/hooks"
         sys.path.insert(0, str(hooks))

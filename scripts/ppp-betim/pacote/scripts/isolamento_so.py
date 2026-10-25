@@ -230,10 +230,13 @@ def _aplicar_homes(home_base, spec):
 def ancestrais_inseguros(raiz, spec):
     """Diretórios acima da raiz que algum papel atravessaria SEM poder ou que poderia alterar (renomear/trocar a raiz)."""
     div, real = [], os.path.realpath(raiz)
+    uids_de_papel = {spec["contas"][p["conta"]] for p in spec["papeis"].values()}
     atual = real
     while atual != "/":
         st = os.stat(atual)
         modo = stat.S_IMODE(st.st_mode)
+        if atual != real and st.st_uid in uids_de_papel:
+            div.append(f"ancestral pertence a uma conta de papel (o dono sempre pode mudar o modo): {atual}")
         for nome in spec["papeis"]:
             uid, _, gids = ids_papel(spec, nome)
             if atual != real and not _bit(uid, gids, st.st_uid, st.st_gid, modo, 1):
@@ -247,7 +250,8 @@ def ancestrais_inseguros(raiz, spec):
 def aplicar(raiz, spec, home_base=None):
     if os.geteuid() != 0:
         raise SystemExit("aplicar exige root (chown); nada foi alterado")
-    perigosos = [d for d in ancestrais_inseguros(raiz, spec) if "gravável" in d]
+    perigosos = [d for d in ancestrais_inseguros(raiz, spec) + (ancestrais_inseguros(home_base, spec) if home_base else [])
+                 if "gravável" in d or "pertence" in d]
     if perigosos:
         raise SystemExit("aplicar recusado: a raiz poderia ser trocada por um papel:\n  - " + "\n  - ".join(perigosos[:5]))
     avisos = []
@@ -291,7 +295,13 @@ def auditar(raiz, spec, home_base=None):
             div.append(f"área ausente: {a['caminho']} (a jaula precisa do ponto de montagem; rode aplicar)")
     for p in _percorrer(raiz):
         rel = _rel(raiz, p)
-        st = os.lstat(p)
+        try:
+            st = os.lstat(p)
+        except FileNotFoundError:
+            continue                                    # sumiu durante a varredura (sessão ativa): nada a auditar
+        except OSError as erro:
+            div.append(f"{rel}: não auditável ({erro.strerror})")      # ex.: caminho longo demais — nunca vira "conforme"
+            continue
         if stat.S_ISLNK(st.st_mode):
             alvo = Path(os.path.realpath(p))
             try:
@@ -407,6 +417,20 @@ def _abrir_rw(caminho):
 NEGACOES = (errno.EACCES, errno.EPERM)
 
 
+def _acesso(caminho, modo):
+    """os.access com a ressalva: filesystem somente leitura ou caminho ausente NÃO é negação do DAC (None = inconclusivo);
+    permissão negada para chegar ao caminho (EACCES/EPERM) é, sim, negação (False)."""
+    try:
+        os.lstat(caminho)
+        if modo & os.W_OK and os.statvfs(caminho).f_flag & os.ST_RDONLY:
+            return None
+    except PermissionError:
+        return False
+    except OSError:
+        return None
+    return os.access(caminho, modo)
+
+
 def _tentar(fn):
     """True = a operação funcionou; False = o kernel NEGOU (EACCES/EPERM); None = falhou por outro motivo (inconclusivo)."""
     try:
@@ -414,6 +438,13 @@ def _tentar(fn):
         return True
     except OSError as erro:
         return False if erro.errno in NEGACOES else None
+
+
+def _acesso_arquivo_de_log(arq):
+    """Escrita no log: sem atravessar a pasta é negação do DAC (EACCES); com a pasta atravessável o arquivo precisa existir."""
+    if os.access(arq.parent, os.X_OK):
+        return _acesso(arq, os.W_OK)
+    return False
 
 
 def _sondas(raiz, spec, papel):
@@ -438,7 +469,8 @@ def _sondas(raiz, spec, papel):
                 _tentar(lambda: os.unlink(nome))
                 escrevivel = escrevivel or d
             res[f"{c}|sobrescrever"] = _tentar(lambda: _abrir_rw(s))
-            res[f"{c}|renomear"] = os.access(d, os.W_OK | os.X_OK) and os.access(d.parent, os.X_OK)       # renomear exige escrita na pasta (sem renomear de fato)
+            ra = _acesso(d, os.W_OK | os.X_OK)
+            res[f"{c}|renomear"] = ra if ra is None else (ra and os.access(d.parent, os.X_OK))       # renomear exige escrita na pasta (sem renomear)
         ataques = {}
         if escrevivel is not None:
             for a in spec["areas"]:
@@ -457,15 +489,15 @@ def _sondas(raiz, spec, papel):
                     os.link(s, duro)
                     os.unlink(duro)
                 ataques[f"{a['caminho']}|hardlink"] = _tentar(via_duro)
-        ataques["raiz|mover_area_registros"] = os.access(raiz, os.W_OK | os.X_OK)         # renomear registros/ exige escrita na raiz
+        ataques["raiz|mover_area_registros"] = _acesso(raiz, os.W_OK | os.X_OK)         # renomear registros/ exige escrita na raiz
         logs = {}
         for nome in nomes_de_log(spec):
             arq = raiz / "logs" / nome
             # sem tocar nos logs reais: acesso de escrita no arquivo cobre anexar e truncar; escrita na pasta cobre apagar/criar
-            logs[f"{nome}|anexar"] = os.access(arq, os.W_OK)
-            logs[f"{nome}|truncar"] = os.access(arq, os.W_OK)
-            logs[f"{nome}|apagar"] = os.access(raiz / "logs", os.W_OK | os.X_OK)
-            logs[f"{nome}|criar_outro"] = os.access(raiz / "logs", os.W_OK | os.X_OK)
+            logs[f"{nome}|anexar"] = _acesso_arquivo_de_log(arq)
+            logs[f"{nome}|truncar"] = logs[f"{nome}|anexar"]
+            logs[f"{nome}|apagar"] = _acesso(raiz / "logs", os.W_OK | os.X_OK)
+            logs[f"{nome}|criar_outro"] = logs[f"{nome}|apagar"]
         return {"areas": res, "ataques": ataques, "logs": logs}
     return _como(uid, gid, gids, corpo)
 
@@ -506,6 +538,8 @@ def sondar(raiz, spec):
                 divergencias.append(f"{papel} ataque {chave}: obtido {obtido}, previsto {previsto}")
         for chave, obtido in r["logs"].items():
             nome, op = chave.split("|")
-            if obtido:            # nenhum papel anexa, trunca, apaga ou cria em logs/: só o serviço de log escreve
+            if obtido is None:
+                divergencias.append(f"{papel} logs/{nome} {op}: INCONCLUSIVO")
+            elif obtido:            # nenhum papel anexa, trunca, apaga ou cria em logs/: só o serviço de log escreve
                 divergencias.append(f"{papel} conseguiu '{op}' em logs/{nome}")
     return divergencias, registro

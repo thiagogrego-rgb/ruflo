@@ -52,9 +52,16 @@ def main(argv):
         print("especificação íntegra" if not problemas else f"{len(problemas)} problema(s) na especificação")
         return 1 if problemas else 0
     if a.comando == "aplicar":
-        for aviso in aplicar(a.raiz, spec, a.home_base):
+        avisos = aplicar(a.raiz, spec, a.home_base)
+        for aviso in avisos:
             print("AVISO:", aviso, file=sys.stderr)
-        print("isolamento aplicado")
+        div = auditar(a.raiz, spec, a.home_base)          # aplicar só vale se a auditoria seguinte confirmar
+        for d in div:
+            print("DIVERGÊNCIA:", d, file=sys.stderr)
+        if avisos or div:
+            print(f"isolamento NÃO confirmado: {len(avisos)} aviso(s), {len(div)} divergência(s)")
+            return 1
+        print("isolamento aplicado e confirmado pela auditoria")
         return 0
     if a.comando == "auditar":
         div = auditar(a.raiz, spec, a.home_base)

@@ -42,7 +42,10 @@ LIMITE_CORPO = 32 * 1024 * 1024
 MAX_SIMULTANEAS = 8
 MAX_POR_PAPEL = 4
 PRAZO_LEITURA = 30          # segundos para cada operação no socket do cliente local (anti-gotejamento)
+PRAZO_TOTAL_LEITURA = 90    # segundos para o cliente local enviar TODO o corpo
+PRAZO_ESCRITA_CLIENTE = 120  # segundos para o cliente local consumir a resposta
 TEMPO_UPSTREAM = 600
+TAXA_POR_PAPEL = (20.0, 100)   # (por segundo, rajada): excesso é recusado SEM auditar cada tentativa (só um resumo)
 HEX = re.compile(rb"^[0-9a-fA-F]{1,8}$")
 DIGITOS = re.compile(r"^[0-9]{1,10}$")
 CAMINHO_SEGURO = re.compile(r"^/[A-Za-z0-9._~/-]*$")      # sem '%', ';', espaços nem '..' (verificado à parte)
@@ -90,6 +93,33 @@ def validar_upstream(url, spec, permitir_http=False):
     return alvo
 
 
+class Taxa:
+    def __init__(self, por_segundo, rajada):
+        self.por_segundo, self.rajada = por_segundo, rajada
+        self.fichas, self.ultimo, self.descartadas, self.ultimo_resumo = float(rajada), time.monotonic(), 0, 0.0
+        self.trava = threading.Lock()
+
+    def permite(self):
+        with self.trava:
+            agora = time.monotonic()
+            self.fichas = min(float(self.rajada), self.fichas + (agora - self.ultimo) * self.por_segundo)
+            self.ultimo = agora
+            if self.fichas >= 1:
+                self.fichas -= 1
+                return True
+            self.descartadas += 1
+            return False
+
+    def resumo_devido(self):
+        """Quantas descartadas devem ser resumidas agora (no máximo uma vez a cada 10 s por papel); 0 se não é hora."""
+        with self.trava:
+            agora = time.monotonic()
+            if self.descartadas and agora - self.ultimo_resumo >= 10:
+                n, self.descartadas, self.ultimo_resumo = self.descartadas, 0, agora
+                return n
+            return 0
+
+
 class Servidor(socketserver.ThreadingUnixStreamServer):
     daemon_threads = True
 
@@ -102,6 +132,7 @@ class Servidor(socketserver.ThreadingUnixStreamServer):
         self.uid_log = spec["contas"][spec["servicos"]["conta_log"]]
         self.limite = threading.BoundedSemaphore(MAX_SIMULTANEAS)
         self.por_papel = {nome: threading.BoundedSemaphore(MAX_POR_PAPEL) for nome in spec["papeis"]}
+        self.taxa = {nome: Taxa(*TAXA_POR_PAPEL) for nome in spec["papeis"]}
         Path(caminho).unlink(missing_ok=True)
         antiga = os.umask(0o117)                     # nunca existe janela com o socket acessível a outros
         try:
@@ -134,8 +165,22 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(corpo)
 
+    def _ler_exato(self, n, limite):
+        """Lê exatamente n bytes em blocos, com prazo TOTAL (o gotejamento não prende o slot)."""
+        partes, falta = [], n
+        while falta:
+            if time.monotonic() > limite:
+                raise ValueError("prazo total de leitura esgotado")
+            bloco = self.rfile.read(min(falta, 65536))
+            if not bloco:
+                raise ValueError("corpo truncado")
+            partes.append(bloco)
+            falta -= len(bloco)
+        return b"".join(partes)
+
     def _corpo(self):
         """Corpo estrito: Content-Length só dígitos, uma única vez; chunked só em hexadecimal puro; nunca os dois."""
+        limite = time.monotonic() + PRAZO_TOTAL_LEITURA
         cls = self.headers.get_all("Content-Length") or []
         tes = self.headers.get_all("Transfer-Encoding") or []
         if len(cls) > 1 or len(tes) > 1 or (cls and tes):
@@ -155,10 +200,7 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
                 total += tamanho
                 if total > LIMITE_CORPO:
                     raise ValueError("corpo grande demais")
-                bloco = self.rfile.read(tamanho)
-                if len(bloco) != tamanho:
-                    raise ValueError("corpo truncado")
-                partes.append(bloco)
+                partes.append(self._ler_exato(tamanho, limite))
                 self.rfile.readline(4)
             return b"".join(partes)
         if not cls:
@@ -168,10 +210,7 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
         tamanho = int(cls[0].strip())
         if tamanho > LIMITE_CORPO:
             raise ValueError("corpo grande demais")
-        corpo = self.rfile.read(tamanho)
-        if len(corpo) != tamanho:
-            raise ValueError("corpo truncado")
-        return corpo
+        return self._ler_exato(tamanho, limite)
 
     def _tratar(self):
         inicio = time.monotonic()
@@ -188,6 +227,11 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
         if not valido:
             self._auditar(papel, "negado", motivo="destino ou método fora da lista", metodo=self.command, caminho=caminho[:200])
             return self._responder(403, "destino não permitido pelo gateway")
+        if not self.server.taxa[papel].permite():
+            n = self.server.taxa[papel].resumo_devido()
+            if n:
+                self._auditar(papel, "negado", motivo=f"taxa excedida ({n} requisições descartadas desde o último resumo)", metodo=self.command)
+            return self._responder(429, "taxa excedida")
         if not self.server.por_papel[papel].acquire(blocking=False):
             self._auditar(papel, "negado", motivo="limite de conexões do papel", metodo=self.command, caminho=caminho)
             return self._responder(429, "limite de conexões do papel")
@@ -210,7 +254,7 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
             return self._responder(400, "corpo inválido")
         if not self._auditar(papel, "inicio", metodo=self.command, caminho=caminho, bytes_req=len(corpo)):
             return self._responder(503, "registro de auditoria indisponível; nada foi enviado")
-        self.connection.settimeout(TEMPO_UPSTREAM)
+        self.connection.settimeout(PRAZO_ESCRITA_CLIENTE)
         status, enviados = 502, 0
         try:
             cab = {k: v for k, v in self.headers.items() if k.lower().startswith(CABECALHOS_ENCAMINHADOS)}

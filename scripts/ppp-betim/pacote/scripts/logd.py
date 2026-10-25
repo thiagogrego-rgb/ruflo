@@ -18,6 +18,9 @@ LIMITES (honestos):
     cadeia não é detectável por `--verificar` (um prefixo coerente é íntegro). Mitigação: publique periodicamente
     `--cabeca ARQUIVO` (seq e hash do último registro) em local fora do alcance deste serviço e compare.
   - Cobre só chamadas de ferramenta que passam pelo hook e requisições que passam pelo gateway.
+  - Disco cheio/EIO no meio de uma escrita pode deixar uma LINHA PARCIAL no fim de um arquivo só-anexar: o serviço então recusa
+    novos registros daquela origem (fail-closed) e só o administrador repara (procedimento: `chattr -a`, remover a linha parcial,
+    conferir com `--verificar`, `chattr +a`, reiniciar). Não há rotação automática: o teto de 512 MiB por arquivo é permanente.
 
     python3 -I -B scripts/logd.py --raiz DIR [--spec papeis.json] [--socket CAMINHO]      (conta do serviço, nunca root)
     python3 -I -B scripts/logd.py --verificar logs/guarda-revisor.jsonl | --cabeca logs/guarda-revisor.jsonl
@@ -44,6 +47,7 @@ LIMITE_TEXTO = 2000
 LIMITE_ARQUIVO = 512 * 1024 * 1024          # acima disso o serviço recusa novos registros daquela origem
 TAXA_POR_SEGUNDO = 50.0
 RAJADA = 200
+TAXA_REDE = (1000.0, 2000)          # (por segundo, rajada): o gateway já limita por papel antes de auditar
 MAX_CONEXOES = 64
 
 
@@ -131,12 +135,13 @@ def _limpar(valor, nivel=0):
 
 
 class Balde:
-    def __init__(self):
-        self.fichas, self.ultimo = float(RAJADA), time.monotonic()
+    def __init__(self, taxa=TAXA_POR_SEGUNDO, rajada=RAJADA):
+        self.taxa, self.rajada = taxa, rajada
+        self.fichas, self.ultimo = float(rajada), time.monotonic()
 
     def consome(self):
         agora = time.monotonic()
-        self.fichas = min(float(RAJADA), self.fichas + (agora - self.ultimo) * TAXA_POR_SEGUNDO)
+        self.fichas = min(float(self.rajada), self.fichas + (agora - self.ultimo) * self.taxa)
         self.ultimo = agora
         if self.fichas < 1:
             return False
@@ -150,7 +155,7 @@ class Cadeia:
     def __init__(self, caminho, exigir_so_anexar=True):
         self.caminho = Path(caminho)
         self.trava = threading.Lock()
-        self.balde = Balde()
+        self.balde = Balde(*TAXA_REDE) if self.caminho.name == "rede.jsonl" else Balde()
         if not self.caminho.exists():
             raise SystemExit(f"{self.caminho.name} não existe: rode `isolamento.py aplicar` (o serviço não cria nem ajusta arquivos)")
         if exigir_so_anexar and not SO._tem_so_anexar(self.caminho):

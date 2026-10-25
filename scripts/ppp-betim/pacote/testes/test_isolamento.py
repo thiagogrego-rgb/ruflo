@@ -217,6 +217,20 @@ class TestLancadorPorPapel(unittest.TestCase):
         self.assertEqual(rev, [])                                          # o revisor lê tudo, por desenho
         self.assertTrue(any("dados/restritos" in x for x in L.regras_de_leitura(self.spec, "coordenador", "/proj")))
 
+    def test_terminal_inseguro_cobre_kernel_com_e_sem_o_sysctl(self):
+        import tempfile
+        d = Path(tempfile.mkdtemp(prefix="tty-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        um, zero, ausente = d / "um", d / "zero", d / "ausente"
+        um.write_text("1\n")
+        zero.write_text("0\n")
+        casos = [(um, None, True, True), (zero, None, True, False), (um, None, False, False),          # sysctl presente: vale o valor
+                 (ausente, "5.15.0-1", True, True), (ausente, "6.1.9", True, True),                     # sem sysctl, kernel < 6.2: sempre permite
+                 (ausente, "6.2.0", True, False), (ausente, "6.8.0-45", True, False), (ausente, "x.y", True, True),
+                 (ausente, "5.15.0", False, False)]
+        for sysctl, release, terminal, esperado in casos:
+            self.assertEqual(L._terminal_inseguro(str(sysctl), release, terminal), esperado, (sysctl.name, release, terminal))
+
     def test_papel_desconhecido_e_agente_sem_nome(self):
         with self.assertRaises(SystemExit):
             L.plano_do_papel(self.spec, "inexistente", [], "/bin/true")
@@ -489,6 +503,25 @@ class TestKernel(unittest.TestCase):
             self.assertNotIn("SAIDA-DR", r.stdout, f"p{i}")
             self.assertNotEqual(r.returncode, 0, f"p{i}")
         self.assertTrue(any("saida" in d for d in I.auditar(self.raiz, self.spec, self.homes)))        # e a auditoria denuncia o excesso
+
+    def test_cli_aplicar_so_confirma_se_a_auditoria_seguinte_estiver_conforme(self):
+        cli = [sys.executable, "-B", str(self.raiz / "scripts/isolamento.py"), "aplicar", "--raiz", str(self.raiz), "--home-base", str(self.homes)]
+        ok = subprocess.run(cli, capture_output=True, text=True, timeout=60)
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        self.assertIn("confirmado pela auditoria", ok.stdout)
+        os.link(self.raiz / "scripts/isolamento.py", self.raiz / "scripts/duro.py")          # hardlink: aplicar avisa e a auditoria reprova
+        ruim = subprocess.run(cli, capture_output=True, text=True, timeout=60)
+        self.assertNotEqual(ruim.returncode, 0)
+        self.assertIn("NÃO confirmado", ruim.stdout)
+
+    def test_ancestral_de_propriedade_de_conta_de_papel_e_recusado(self):
+        os.chown(self.base, self.spec["contas"]["ppp-p3"], self.spec["contas"]["ppp-p3"])      # o dono sempre pode mudar o modo
+        try:
+            self.assertTrue(any("pertence a uma conta de papel" in d for d in I.auditar(self.raiz, self.spec, self.homes)))
+            with self.assertRaises(SystemExit):
+                I.aplicar(self.raiz, self.spec)
+        finally:
+            os.chown(self.base, 0, 0)
 
     def test_fifo_no_lugar_da_sentinela_nao_trava_aplicar(self):
         os.unlink(self.raiz / "produtos/P5/.sentinela")

@@ -32,6 +32,9 @@ Estados: **CORRIGIDO** (controle efetivo, testado), **MITIGADO** (reduzido, res�
 | R25 | Sem seccomp; sem `--new-session` (TIOCSTI) | **MITIGADO** | `--disable-userns`; o lançador **recusa** terminal de controle com `dev.tty.legacy_tiocsti=1`. Seccomp: NÃO IMPLEMENTADO |
 | R26 | Montagem detectada só por `st_dev` | **ABERTO** | bind mount no mesmo filesystem não é visto |
 | R27 | Auditoria é instantânea; `aplicar` exige sessões paradas | **ABERTO (operacional)** | reauditar periodicamente é manual |
+| R29 | Disco cheio/EIO no meio de uma escrita deixa linha parcial; o serviço de log recusa novos registros daquela origem (fail-closed) e só o administrador repara; sem rotação (teto de 512 MiB por arquivo) | **ABERTO (operacional)** | procedimento de reparo documentado em `logd.py` |
+| R30 | Dentro da jaula o hook aceita o servidor de log com uid 65534 (o uid real não é visível num user namespace) | **MITIGADO** | o lançador confere, no host, que o socket é da conta esperada e que a pasta e os ancestrais não são graváveis por outros; o hook fora da jaula exige o uid exato |
+| R31 | O registro "fim" da requisição no gateway é de melhor esforço (a resposta já saiu) | **ABERTO (aceito)** | o registro "inicio" é obrigatório e confirmado antes do envio |
 | R28 | Modo legado do guarda (`PPP_LOG_LEGADO=1`) | **MITIGADO** | padrão é FECHADO: sem serviço de log confirmado a operação é recusada; o legado só é ligado pelo lançador sem papel (sintético) |
 
 ## 2. Correções implementadas
@@ -133,6 +136,10 @@ Logs: nenhum papel escreve; `coordenador` e `revisor` leem. Dados sigilosos: só
 | Lançador: opções fora da lista branca, root obrigatório, socket de serviço de outra conta, terminal inseguro, sem log/gateway | − | PASSOU |
 | Verificador: agente com ferramenta fora do escopo, deny de rede ausente, matcher que não cobre `Task` | − | PASSOU |
 | Guarda: ferramenta desconhecida recusada; internas aceitas | −/+ | PASSOU |
+| Terminal de controle com TIOCSTI (com e sem o sysctl, por versão do kernel): recusa | − | PASSOU |
+| `isolamento.py aplicar` só confirma se a auditoria seguinte estiver conforme; ancestral de conta de papel é recusado | − | PASSOU |
+| Gateway: leitura do corpo com prazo total; taxa por papel sem auditar cada tentativa; inundação de um papel não derruba os outros | − | PASSOU |
+| Verificador: `agente_padrao` de cada papel precisa existir em `.claude/agents` e na matriz | − | PASSOU |
 | Vetor de persistência por MCP no HOME | — | NÃO EXECUTADO (o claude, em modo `-p`, não iniciou o MCP nem sem a proteção) |
 | Conversa **real** com a API através do gateway (credencial real) | — | NÃO EXECUTADO |
 | Instalação dos serviços como unidades do sistema, contas reais, firewall por uid | — | NÃO EXECUTADO |
@@ -171,6 +178,13 @@ Dois revisores novos, somente leitura, sem executar código (**sem teste dinâmi
   "negado" para qualquer erro (média), traversal que trava com FIFO (média), `userns` aninhado (média), homes de outros papéis visíveis
   (média), descritores herdados (baixa). **Aceitos**: terminal de controle (TIOCSTI) só **recusado**, não eliminado (R25); `ro-bind /`
   parcial (R24); `st_dev` (R26); sessões do mesmo papel (R18).
+**2ª rodada (os mesmos revisores releram as correções):** serviços — dos 18 achados, 13 CORRIGIDOS e 5 PARCIAIS; isolamento — 5 CORRIGIDOS,
+2 ACEITO-DOCUMENTADO e 11 PARCIAIS, mais achados novos. Tratados depois da 2ª rodada (**sem nova revisão independente**): prazo total de leitura
+e taxa por papel antes de auditar (cota compartilhada do `rede.jsonl`), terminal sem o sysctl por versão do kernel, sondas em filesystem
+somente leitura, auditoria que não cai quando uma entrada some, `aplicar` que confirma pela auditoria, ancestrais do `home_base` e de dono
+de papel, cruzamento papéis × agentes × matriz, ancestrais do socket de serviço, `closerange` até 65536. Continuam abertos: conteúdo do
+hook autodeclarado (R20), seccomp e `ro-bind /` (R24, R25), `~/.claude/agents|skills` e `CLAUDE.md` do HOME gravável (R18), transcrições
+retomáveis com `--resume`/`-c` no HOME (R18), settings do papel legível (0644) com a cópia do settings do projeto (sem segredos).
 Os revisores confirmaram que a ordem `setpriv → bwrap → entrada → claude`, `no_new_privs` e o bounding set zerado estão corretos.
 **O parecer não homologa o desenho**: a revisão é estática; a revisão dinâmica por pessoa qualificada continua pendente.
 

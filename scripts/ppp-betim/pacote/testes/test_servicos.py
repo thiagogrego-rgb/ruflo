@@ -277,6 +277,13 @@ class TestGateway(Ambiente):
             self.assertEqual(self.bruto("p3", req), "403", caminho)
         self.assertEqual(self.destino.recebidos, [])
 
+    def test_inundacao_de_um_papel_nao_derruba_a_auditoria_dos_outros(self):
+        for _ in range(150):                                     # p3 dispara muitas requisições proibidas
+            self.requisicao_como("p3", caminho="/proibido")
+        status, _ = self.requisicao_como("coordenador")          # outro papel segue sendo atendido e auditado
+        self.assertEqual(status, 200)
+        self.assertIn('"papel":"coordenador"', self.le_log("rede.jsonl"))
+
     def test_somente_cabecalhos_necessarios_sao_encaminhados(self):
         self.requisicao_como("p3", cabecalhos={"Cookie": "sessao=1", "X-Forwarded-For": "1.2.3.4", "Authorization": "Bearer x",
                                               "X-Api-Key": CHAVE_DO_AGENTE, "anthropic-version": "2023-06-01", "X-Stainless-Lang": "js",
@@ -420,6 +427,28 @@ class TestGateway(Ambiente):
         self.assertIn("STATUS 200", r.stdout)
         self.assertNotIn(CHAVE_REAL, r.stdout + r.stderr)
         self.assertEqual(self.destino.recebidos[-1]["cabecalhos"]["x-api-key"], CHAVE_REAL)
+
+
+class TestLimitesDoGateway(unittest.TestCase):
+    """Sem root: limites de tempo e de taxa do gateway."""
+
+    def test_leitura_do_corpo_tem_prazo_total(self):
+        import io
+        m = GW.Manipulador.__new__(GW.Manipulador)
+
+        class Gotejante(io.BytesIO):
+            def read(self, n=-1):
+                return b"x"                           # um byte por chamada: nunca termina sozinho
+        m.rfile = Gotejante()
+        with self.assertRaises(ValueError):
+            m._ler_exato(1000, time.monotonic() - 1)       # prazo já vencido
+        self.assertEqual(len(m._ler_exato(10, time.monotonic() + 30)), 10)
+
+    def test_taxa_por_papel_descarta_sem_auditar_cada_tentativa(self):
+        taxa = GW.Taxa(1.0, 3)
+        self.assertEqual([taxa.permite() for _ in range(5)], [True, True, True, False, False])
+        self.assertEqual(taxa.resumo_devido(), 2)               # um único resumo para as duas descartadas
+        self.assertEqual(taxa.resumo_devido(), 0)               # e nada de novo antes de 10 s
 
 
 class TestPontaDaJaula(unittest.TestCase):

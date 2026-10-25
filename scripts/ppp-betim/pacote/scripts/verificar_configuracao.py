@@ -78,7 +78,20 @@ def verificar(raiz=RAIZ):
                             problemas.append(f"matcher do guarda não cobre {ferramenta}")
     except (KeyError, TypeError, AttributeError) as erro:
         problemas.append(f"estrutura de settings.json inesperada ({type(erro).__name__})")
-    for agente in sorted((raiz / ".claude/agents").glob("*.md")):
+    pasta_agentes = raiz / ".claude/agents"
+    if not pasta_agentes.is_dir():
+        problemas.append("pasta .claude/agents ausente (sem lista de ferramentas por agente)")
+    else:
+        try:
+            papeis = json.loads((raiz / "governanca/papeis.json").read_text(encoding="utf-8"))["papeis"]
+            matriz = json.loads((raiz / "governanca/matriz-agentes.json").read_text(encoding="utf-8"))["agentes"]
+            for nome, papel in papeis.items():
+                padrao = papel.get("agente_padrao")
+                if not (pasta_agentes / f"{padrao}.md").is_file() or padrao not in matriz:
+                    problemas.append(f"papel {nome}: agente_padrao '{padrao}' ausente em .claude/agents ou na matriz")
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            problemas.append("não foi possível cruzar papeis.json com os agentes e a matriz")
+    for agente in sorted(pasta_agentes.glob("*.md")):
         linha = next((x for x in agente.read_text(encoding="utf-8").splitlines() if x.startswith("tools:")), None)
         if linha is None:
             problemas.append(f"agente {agente.stem} sem lista 'tools:' (herdaria TODAS as ferramentas)")
