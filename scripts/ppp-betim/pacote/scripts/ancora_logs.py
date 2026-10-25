@@ -50,10 +50,18 @@ def publicar(raiz, spec, destino, agora=None):
     return ts, cabecas
 
 
-def verificar(raiz, spec, destino):
-    """Lista de problemas (vazia = todas as âncoras publicadas ainda batem com as cadeias atuais)."""
+def verificar(raiz, spec, destino, idade_maxima_s=None):
+    """Lista de problemas (vazia = todas as âncoras publicadas ainda batem com as cadeias atuais).
+    LIMITES: as âncoras só fixam o prefixo até o seq publicado; registros posteriores à última âncora não são protegidos por elas, e a
+    primeira publicação é aceita por confiança. Um atacante com root no MESMO host pode refazer cadeias e âncoras: o destino deve ficar em outro
+    host/mídia de escrita única (decisão humana pendente)."""
     problemas = []
+    st = os.lstat(destino)
+    if st.st_uid != 0 or st.st_mode & 0o022:
+        problemas.append("diretório das âncoras inseguro (deve ser do root e sem escrita para grupo/outros)")
     ancoras = sorted(Path(destino).glob("ancora-*.json"))
+    if ancoras and idade_maxima_s is not None and time.time() - ancoras[-1].stat().st_mtime > idade_maxima_s:
+        problemas.append(f"a última âncora tem mais de {idade_maxima_s} s: a janela sem proteção da cauda está aberta")
     if not ancoras:
         return ["nenhuma âncora publicada: sem ela o truncamento do fim da cadeia não é detectável"]
     logs = _logs(raiz, spec)
@@ -67,11 +75,16 @@ def verificar(raiz, spec, destino):
     for arq in ancoras:
         try:
             ancora = json.loads(arq.read_text(encoding="utf-8"))["cabecas"]
-        except (OSError, ValueError, KeyError):
-            problemas.append(f"{arq.name}: âncora ilegível")
+            if not isinstance(ancora, dict) or not all(isinstance(c, dict) and isinstance(c.get("seq"), int) and "hash" in c for c in ancora.values()):
+                raise ValueError("estrutura")
+        except (OSError, ValueError, KeyError, TypeError):
+            problemas.append(f"{arq.name}: âncora ilegível ou malformada")
             continue
+        for nome in sorted(set(registros) - set(ancora)):
+            problemas.append(f"{nome}: ausente na âncora {arq.name}")
         for nome, c in ancora.items():
             if nome not in registros:
+                problemas.append(f"{nome}: a âncora {arq.name} cita um log que não existe mais na especificação")
                 continue
             if c["seq"] == 0:
                 continue

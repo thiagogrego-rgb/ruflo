@@ -225,12 +225,10 @@ def f3_destino_indisponivel(ctx):
 
 
 def f4_credencial_ausente_e_rotacao(ctx, chave_atual, chave_nova):
-    """Revoga a credencial (gateway deve sair do ar e não voltar), reprovisiona outra e confirma que só a nova chega ao destino."""
-    config = AMB.CONFIG_SERVICOS
+    """Revoga a credencial SEM tocar no gateway: o supervisor tem de derrubá-lo e ele só volta com a credencial nova; só a nova chega ao destino."""
+    antigo = _pids().get("gateway")
     AMB.revogar_credencial(motivo="teste F4 (laboratório)")
-    antigo = _mata("gateway")
-    time.sleep(2.5)
-    sem_gateway = _pids().get("gateway") is None and not _vivo(ctx.gw_socket)
+    derrubado = _espera(lambda: _pids().get("gateway") is None and not _vivo(ctx.gw_socket), 20)
     r, _ = ctx.sessao("p3", [ctx.leitura("produtos/P3/SINTETICO-p3.md")], tempo=120)
     sessao_falha = r.returncode != 0 or "API Error" in r.stdout
     AMB.instalar_credencial(ctx.spec, chave_nova, "rotacao-sintetica-F4")
@@ -238,9 +236,10 @@ def f4_credencial_ausente_e_rotacao(ctx, chave_atual, chave_nova):
     ctx.modelo.requisicoes.clear()
     sessao_nova = voltou and _sessao_ok(ctx)
     chaves = {q["cabecalhos"].get("x-api-key") for q in ctx.modelo.requisicoes}
-    return {"gateway_nao_sobe_sem_credencial": sem_gateway, "sessao_falha_sem_credencial": sessao_falha, "gateway_volta_com_nova_credencial": bool(voltou),
-            "sessao_normal_apos_rotacao": bool(sessao_nova), "destino_viu_so_a_chave_nova": chaves == {chave_nova.decode().strip()},
-            "chave_antiga_nao_chegou_apos_rotacao": chave_atual.decode().strip() not in chaves, "config_existe": config.exists()}
+    return {"gateway_derrubado_pela_revogacao_sem_intervencao": bool(derrubado), "sessao_falha_sem_credencial": sessao_falha,
+            "gateway_volta_com_nova_credencial": bool(voltou), "sessao_normal_apos_rotacao": bool(sessao_nova),
+            "destino_viu_so_a_chave_nova": chaves == {chave_nova.decode().strip()},
+            "chave_antiga_nao_chegou_apos_rotacao": chave_atual.decode().strip() not in chaves}
 
 
 def f5_adulteracao_de_logs(ctx):

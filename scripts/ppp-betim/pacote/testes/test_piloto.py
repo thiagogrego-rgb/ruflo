@@ -309,6 +309,22 @@ class TestRejeicaoSemReset(Ambiente):
             self.assertEqual(status, 403, f"tentativa {i}")
 
 
+    def test_inundacao_de_pedidos_invalidos_nao_inunda_o_log(self):
+        """Achado da revisão: recusas eram auditadas ANTES do limitador de taxa; um papel enchia o log só-anexar."""
+        self.sobe_logd()
+        self.sobe_gateway()
+        sonda = ("import socket,sys\n"
+                 "for _ in range(400):\n"
+                 " s=socket.socket(socket.AF_UNIX);s.settimeout(10);s.connect(sys.argv[1])\n"
+                 " s.sendall(b'POST /v1/proibido HTTP/1.0\\r\\nHost: x\\r\\nContent-Length: 0\\r\\n\\r\\n')\n"
+                 " s.recv(200);s.close()\n")
+        from apoio_servicos import rodar_como
+        r = rodar_como("p3", self.spec, sonda, args=[str(self.gw_socket)])
+        self.assertEqual(r.returncode, 0, r.stderr[-300:])
+        negados = [l for l in self.le_log("rede.jsonl").splitlines() if '"evento":"negado"' in l]
+        self.assertLess(len(negados), 250, f"{len(negados)} recusas auditadas para 400 pedidos: o limitador não foi aplicado antes da auditoria")
+        self.assertGreater(len(negados), 0)
+
     def test_rajada_de_conexoes_recebe_200_ou_429_e_nunca_erro_de_conexao(self):
         """Achado do piloto (rodada 2, F6): backlog 5 do listen fazia ~metade de uma rajada de 40 conexões levar EAGAIN no connect."""
         self.sobe_logd()
@@ -459,6 +475,147 @@ class TestAmbiente(unittest.TestCase):
             self.assertFalse(any("sk-ant" in c for c in cmd))
         gw = AMB.comando_de_servico(self.spec, "gateway", {"gateway": {"upstream": "https://api.anthropic.com"}})
         self.assertNotIn("--permitir-http-de-teste", gw)                         # produção nunca recebe a exceção de teste
+
+
+class TestCorrecoesDaRevisaoIndependente(unittest.TestCase):
+    """Achados do parecer de segurança do GOV-09 (revisão independente): cada um com seu teste."""
+
+    def setUp(self):
+        self.spec = spec_base()
+
+    def test_contas_sao_criadas_sem_shell_e_nome_malicioso_e_recusado_antes_de_executar(self):
+        for _, _, argv in AMB.argvs_de_contas(self.spec):
+            self.assertIsInstance(argv, list)
+            self.assertFalse(any(x in ("&&", ";", "|") for x in argv))
+        ruim = json.loads(json.dumps(self.spec))
+        ruim["contas"]["ppp-x;touch /tmp/pwned"] = 61999
+        with mock.patch.object(AMB.subprocess, "run") as run:
+            with self.assertRaises(SystemExit):
+                AMB.criar_contas(ruim)
+            run.assert_not_called()
+
+    def test_instalar_recusa_dados_nao_sinteticos_symlink_e_supervisor_ativo(self):
+        origem = Path(tempfile.mkdtemp(prefix="origem-"))
+        for d in ("scripts", "governanca", "dados/entrada"):
+            (origem / d).mkdir(parents=True)
+        (origem / "governanca/papeis.json").write_text("{}")
+        (origem / "dados/entrada/doc.txt").write_text("conteudo real da prefeitura\n")
+        with mock.patch.object(AMB, "_supervisor_vivo", return_value=False), self.assertRaises(SystemExit) as e:
+            AMB.instalar(self.spec, origem)
+        self.assertIn("sintéticos", str(e.exception))
+        (origem / "dados/entrada/doc.txt").write_text("SINTETICO ok\n")
+        os.symlink("/etc/shadow", origem / "scripts/x.py")
+        with mock.patch.object(AMB, "_supervisor_vivo", return_value=False), self.assertRaises(SystemExit) as e:
+            AMB.instalar(self.spec, origem)
+        self.assertIn("link simbólico", str(e.exception))
+        with mock.patch.object(AMB, "_supervisor_vivo", return_value=True), self.assertRaises(SystemExit) as e:
+            AMB.instalar(self.spec, origem)
+        self.assertIn("supervisor", str(e.exception))
+
+    def test_excecao_de_teste_so_vale_com_credencial_sintetica(self):
+        pasta = Path(tempfile.mkdtemp())
+        sintetica, real = pasta / "s", pasta / "r"
+        sintetica.write_bytes(CANARIO)
+        real.write_bytes(b"sk-ant-api03-credencial-que-parece-real-0123456789")
+        for arq, esperado in ((sintetica, True), (real, False)):
+            cfg = {"gateway": {"chave_arquivo": str(arq), "upstream": "http://127.0.0.1:9", "permitir_teste": True}}
+            self.assertEqual("--permitir-http-de-teste" in AMB.comando_de_servico(self.spec, "gateway", cfg), esperado)
+
+    def test_config_de_laboratorio_e_recusada_no_modo_producao(self):
+        self.assertTrue(AMB.validar_config_producao({"gateway": {"permitir_teste": True}}, self.spec))
+        self.assertTrue(AMB.validar_config_producao({"gateway": {"upstream": "http://127.0.0.1:1234"}}, self.spec))
+        self.assertEqual(AMB.validar_config_producao({"gateway": {"upstream": self.spec["rede"]["upstream"]}}, self.spec), [])
+
+    def test_supervisor_derruba_o_gateway_quando_a_credencial_some_e_o_religa_com_a_nova(self):
+        pasta = Path(tempfile.mkdtemp())
+        chave, cfg, status = pasta / "chave", pasta / "servicos.json", pasta / "status.json"
+        chave.write_bytes(CANARIO)
+        cfg.write_text(json.dumps({"gateway": {"chave_arquivo": str(chave)}}))
+        longo = [sys.executable, "-c", "import os,time;open(os.environ.get('X_ENV_DUMP','/dev/null'),'w').write('x');time.sleep(60)"]
+        amostras = {}
+
+        def pids():
+            return json.loads(status.read_text())["pids"].get("gateway")
+
+        def roteiro():
+            time.sleep(1.6)
+            amostras["inicial"] = pids()
+            chave.unlink()
+            time.sleep(1.6)
+            amostras["sem_chave"] = pids()
+            chave.write_bytes(CANARIO + b"-nova")
+            time.sleep(2.4)
+            amostras["nova"] = pids()
+        with mock.patch.object(AMB, "CONFIG_SERVICOS", cfg), mock.patch.object(AMB, "STATUS_SUPERVISOR", status), \
+                mock.patch.object(AMB, "comando_de_servico", lambda spec, nome, config: longo):
+            threading.Thread(target=roteiro, daemon=True).start()
+            AMB.supervisionar(self.spec, parar_apos=7, ancora_a_cada=0)
+        self.assertIsNotNone(amostras["inicial"])
+        self.assertIsNone(amostras["sem_chave"], "revogar a credencial tem de derrubar o gateway em execução")
+        self.assertIsNotNone(amostras["nova"])
+        self.assertNotEqual(amostras["nova"], amostras["inicial"])
+
+    def test_filhos_do_supervisor_nao_herdam_o_ambiente_do_root(self):
+        pasta = Path(tempfile.mkdtemp())
+        chave, cfg, status, dump = pasta / "chave", pasta / "servicos.json", pasta / "status.json", pasta / "env.txt"
+        chave.write_bytes(CANARIO)
+        cfg.write_text(json.dumps({"gateway": {"chave_arquivo": str(chave)}}))
+        cmd = [sys.executable, "-c", f"import os;open({str(dump)!r},'w').write(repr(sorted(os.environ)));import time;time.sleep(5)"]
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "chave-do-operador-root"}), mock.patch.object(AMB, "CONFIG_SERVICOS", cfg), \
+                mock.patch.object(AMB, "STATUS_SUPERVISOR", status), mock.patch.object(AMB, "comando_de_servico", lambda spec, nome, config: cmd):
+            AMB.supervisionar(self.spec, parar_apos=2, ancora_a_cada=0)
+        self.assertNotIn("ANTHROPIC_API_KEY", dump.read_text())
+
+    def test_arquivo_de_ca_inseguro_e_recusado(self):
+        pasta = Path(tempfile.mkdtemp())
+        ca = pasta / "ca.pem"
+        ca.write_text("x")
+        os.chmod(ca, 0o666)
+        with self.assertRaises(SystemExit):
+            GW.verificar_ca(ca)
+        os.chmod(ca, 0o644)
+        GW.verificar_ca(ca)
+        ln = pasta / "ln.pem"
+        os.symlink(ca, ln)
+        with self.assertRaises(SystemExit):
+            GW.verificar_ca(ln)
+
+    def test_proxy_com_porta_invalida_e_recusado_sem_traceback(self):
+        arq = Path(tempfile.mkdtemp()) / "p.url"
+        arq.write_text("http://a:b@proxy.exemplo:abc\n")
+        os.chmod(arq, 0o600)
+        with self.assertRaises(SystemExit):
+            GW.ler_proxy(arq)
+
+
+@PULAR
+class TestAncorasRevisadas(unittest.TestCase):
+    def setUp(self):
+        self.spec = spec_base()
+        self.raiz = _raiz_com_logs(self.spec)
+        self.destino = Path(tempfile.mkdtemp(prefix="anc-dest-"))
+        os.chmod(self.destino, 0o755)
+
+    def test_ancora_malformada_vira_problema_e_nao_excecao(self):
+        ANC.publicar(self.raiz, self.spec, self.destino)
+        (self.destino / "ancora-zzz.json").write_text('{"cabecas": {"rede.jsonl": 5}}')
+        self.assertTrue(any("malformada" in p for p in ANC.verificar(self.raiz, self.spec, self.destino)))
+
+    def test_diretorio_inseguro_e_ancora_antiga_sao_apontados(self):
+        ANC.publicar(self.raiz, self.spec, self.destino)
+        self.assertEqual(ANC.verificar(self.raiz, self.spec, self.destino, idade_maxima_s=3600), [])
+        self.assertTrue(any("mais de" in p for p in ANC.verificar(self.raiz, self.spec, self.destino, idade_maxima_s=-1)))
+        os.chmod(self.destino, 0o777)
+        self.assertTrue(any("inseguro" in p for p in ANC.verificar(self.raiz, self.spec, self.destino)))
+
+    def test_cauda_posterior_a_ultima_ancora_nao_e_protegida_limite_declarado(self):
+        ANC.publicar(self.raiz, self.spec, self.destino)
+        cadeia = logd.Cadeia(self.raiz / "logs/rede.jsonl", exigir_so_anexar=False)
+        cadeia.anexar("p3", {"evento": "depois-da-ancora"})
+        alvo = self.raiz / "logs/rede.jsonl"
+        linhas = alvo.read_text().splitlines()
+        alvo.write_text("\n".join(linhas[:-1]) + "\n")                          # remove só o registro posterior à âncora
+        self.assertEqual(ANC.verificar(self.raiz, self.spec, self.destino), [], "documentado: o que vem depois da última âncora não é coberto")
 
 
 class TestVivacidadeDoServico(unittest.TestCase):

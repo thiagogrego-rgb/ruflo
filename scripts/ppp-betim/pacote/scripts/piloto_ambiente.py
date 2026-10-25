@@ -9,6 +9,7 @@ import getpass
 import hashlib
 import json
 import os
+import re
 import shutil
 import signal
 import stat
@@ -68,24 +69,45 @@ def verificar_dados_sinteticos(pasta):
 
 
 # ------------------------------------------------------------------------------------------------ contas
+NOME_SEGURO = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
+
+
+def argvs_de_contas(spec):
+    """Lista de argv (sem shell) que cria grupos e contas da especificação. Os nomes são validados ANTES de qualquer execução."""
+    problemas = ISO.validar(spec)
+    nomes = list(spec["grupos"]) + list(spec["contas"])
+    problemas += [f"nome inseguro: {n!r}" for n in nomes if not NOME_SEGURO.match(str(n))]
+    if problemas:
+        raise SystemExit("especificação recusada:\n  - " + "\n  - ".join(problemas[:10]))
+    argvs = [("grupo", g, ["groupadd", "-g", str(gid), g]) for g, gid in spec["grupos"].items()]
+    for c, uid in spec["contas"].items():
+        papel = next((p for p in spec["papeis"].values() if p["conta"] == c), None)
+        servicos = spec.get("servicos", {})
+        if papel:
+            sup = list(papel["grupos"])
+        elif c in (servicos.get("conta_log"), servicos.get("conta_rede")):
+            sup = list(servicos.get("grupos_contas_servico", []))
+        else:
+            sup = []
+        argvs.append(("grupo", c, ["groupadd", "-g", str(uid), c]))
+        argvs.append(("conta", c, ["useradd", "-r", "-M", "-u", str(uid), "-g", c, *(["-G", ",".join(sup)] if sup else []), "-s", "/usr/sbin/nologin", c]))
+    return argvs
+
+
 def comandos_de_contas(spec):
-    return [c for c in ISO.comandos_contas(spec).splitlines() if c and not c.startswith("#")]
+    return [" ".join(a[2]) for a in argvs_de_contas(spec)]
 
 
 def criar_contas(spec):
-    """Cria as contas/grupos sintéticos que ainda não existem. Devolve (criadas, existentes)."""
+    """Cria as contas/grupos que ainda não existem (sem shell). Devolve (criadas, existentes)."""
     criadas, existentes = [], []
-    for comando in comandos_de_contas(spec):
-        alvo = comando.split()[-1]
-        if comando.startswith("groupadd -g") and "&&" not in comando:
-            existe = subprocess.run(["getent", "group", alvo], capture_output=True).returncode == 0
-        else:
-            existe = subprocess.run(["getent", "passwd", alvo], capture_output=True).returncode == 0
+    for tipo, nome, argv in argvs_de_contas(spec):
+        existe = subprocess.run(["getent", "group" if tipo == "grupo" else "passwd", nome], capture_output=True).returncode == 0
         if existe:
-            existentes.append(alvo)
+            existentes.append(nome) if nome not in existentes else None
             continue
-        subprocess.run(comando, shell=True, check=True, capture_output=True)
-        criadas.append(alvo)
+        subprocess.run(argv, check=True, capture_output=True)
+        criadas.append(nome) if nome not in criadas else None
     return criadas, existentes
 
 
@@ -101,21 +123,34 @@ def inventario_de_contas(spec):
 
 
 # ------------------------------------------------------------------------------------------------ instalação
+def _supervisor_vivo():
+    try:
+        pid = json.loads(STATUS_SUPERVISOR.read_text())["pid"]
+        return Path(f"/proc/{pid}").exists() and "python" in Path(f"/proc/{pid}/comm").read_text()
+    except (OSError, ValueError, KeyError):
+        return False
+
+
 def instalar(spec, origem_projeto, dados_sinteticos=None):
     """Instala código imutável (root), árvore do projeto, diretórios de serviço e homes. Idempotente."""
-    problemas = []
-    if dados_sinteticos:
-        problemas = verificar_dados_sinteticos(dados_sinteticos)
-        if problemas:
-            raise SystemExit("instalação recusada (dados não declarados como sintéticos):\n  - " + "\n  - ".join(problemas[:5]))
     origem = Path(origem_projeto)
+    if _supervisor_vivo():
+        raise SystemExit("instalação recusada: o supervisor está em execução (pare os serviços antes de trocar código e árvore)")
+    problemas = verificar_dados_sinteticos(origem / "dados")                        # SEMPRE a pasta que será copiada
+    if dados_sinteticos:
+        problemas += verificar_dados_sinteticos(dados_sinteticos)
+    if problemas:
+        raise SystemExit("instalação recusada (dados não declarados como sintéticos):\n  - " + "\n  - ".join(problemas[:5]))
+    for suspeito in [*(origem / "scripts").glob("*.py"), origem / "governanca/papeis.json"]:
+        if suspeito.is_symlink():
+            raise SystemExit(f"instalação recusada: link simbólico na origem do código: {suspeito}")
     if CODIGO.exists():
         shutil.rmtree(CODIGO)
     (CODIGO / "scripts").mkdir(parents=True)
     (CODIGO / "governanca").mkdir()
     for f in (origem / "scripts").glob("*.py"):
-        shutil.copy2(f, CODIGO / "scripts" / f.name)
-    shutil.copy2(origem / "governanca/papeis.json", CODIGO / "governanca/papeis.json")
+        shutil.copy2(f, CODIGO / "scripts" / f.name, follow_symlinks=False)
+    shutil.copy2(origem / "governanca/papeis.json", CODIGO / "governanca/papeis.json", follow_symlinks=False)
     for p in [CODIGO.parent, CODIGO, CODIGO / "scripts", CODIGO / "governanca"]:
         os.chmod(p, 0o755)
     for f in (CODIGO / "scripts").glob("*.py"):
@@ -123,8 +158,13 @@ def instalar(spec, origem_projeto, dados_sinteticos=None):
     for p in [CODIGO.parent, *CODIGO.rglob("*")]:
         os.chown(p, 0, 0)
     if PROJETO.exists():
-        for arq in (PROJETO / "logs").glob("*.jsonl") if (PROJETO / "logs").is_dir() else []:
+        logs_antigos = PROJETO / "logs"
+        for arq in logs_antigos.glob("*.jsonl") if logs_antigos.is_dir() else []:
             subprocess.run(["chattr", "-a", str(arq)], capture_output=True)
+        if logs_antigos.is_dir() and any(logs_antigos.glob("*.jsonl")):          # evidência não se apaga: os logs da instalação anterior ficam arquivados
+            destino_logs = VAR / "logs-arquivados" / time.strftime("%Y%m%dT%H%M%S")
+            destino_logs.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(logs_antigos, destino_logs)
         shutil.rmtree(PROJETO)
     PROJETO.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(PROJETO.parent, 0o755)
@@ -263,6 +303,26 @@ def varredura_de_credencial(chave_bytes, pastas, ignorar=()):
 
 
 # ------------------------------------------------------------------------------------------------ supervisor
+def chave_sintetica(arquivo):
+    try:
+        return MARCADOR_SINTETICO.encode() in Path(arquivo).read_bytes()
+    except OSError:
+        return False
+
+
+def validar_config_producao(config, spec):
+    """Para o modo api-real: nada de exceção de teste e destino só https do host definido em papeis.json. Devolve a lista de problemas."""
+    g = config.get("gateway", {})
+    problemas = []
+    if g.get("permitir_teste"):
+        problemas.append("servicos.json tem permitir_teste=true (sobra de laboratório?)")
+    alvo = g.get("upstream")
+    esperado = spec["rede"]["upstream"]
+    if alvo and alvo.rstrip("/") != esperado.rstrip("/"):
+        problemas.append(f"upstream {alvo!r} difere do definido em papeis.json ({esperado!r})")
+    return problemas
+
+
 def comando_de_servico(spec, nome, config):
     """Linha de comando de um serviço (rebaixado para a conta dele, sem privilégios novos)."""
     conta = spec["servicos"]["conta_log"] if nome == "logd" else spec["servicos"]["conta_rede"]
@@ -281,33 +341,65 @@ def comando_de_servico(spec, nome, config):
         cmd += ["--proxy-arquivo", g["proxy_arquivo"]]
     if g.get("ca_arquivo"):
         cmd += ["--ca-arquivo", g["ca_arquivo"]]
-    if g.get("permitir_teste"):
-        cmd += ["--permitir-http-de-teste"]
+    if g.get("permitir_teste") and chave_sintetica(g.get("chave_arquivo", str(CHAVE))):
+        cmd += ["--permitir-http-de-teste"]                 # a exceção de teste só vale com credencial marcada SINTETICO; a chave real nunca vai em claro
     return cmd
 
 
-def supervisionar(spec, parar_apos=None):
-    """Laço do supervisor: mantém logd e gateway no ar, reiniciando com espera; grava o status. Termina com SIGTERM."""
+def _assinatura(arquivo):
+    try:
+        st = os.stat(arquivo)
+        return (st.st_ino, st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+def supervisionar(spec, parar_apos=None, ancora_a_cada=300.0):
+    """Laço do supervisor: mantém logd e gateway no ar e reinicia com espera. O gateway cai quando a credencial some ou muda (revogação/rotação
+    valem de verdade) e só volta com a nova. Publica âncoras de log periodicamente. Termina com SIGTERM/SIGINT/SIGHUP."""
     parar = {"sim": False}
-    signal.signal(signal.SIGTERM, lambda *_: parar.update(sim=True))
-    filhos, reinicios, ultimo = {}, {"logd": 0, "gateway": 0}, {"logd": 0.0, "gateway": 0.0}
-    inicio = time.time()
+    for sinal in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sinal, lambda *_: parar.update(sim=True))
+    filhos, reinicios, ultimo, assin = {}, {"logd": 0, "gateway": 0}, {"logd": 0.0, "gateway": 0.0}, {}
+    config, ultima_ancora, inicio = {}, 0.0, time.time()
+    env = {"PATH": os.environ.get("PATH", "/usr/sbin:/usr/bin:/sbin:/bin"), "LANG": "C.UTF-8"}      # filhos NÃO herdam o ambiente do root
     while not parar["sim"]:
-        config = json.loads(CONFIG_SERVICOS.read_text()) if CONFIG_SERVICOS.exists() else {}
+        try:
+            config = json.loads(CONFIG_SERVICOS.read_text()) if CONFIG_SERVICOS.exists() else {}
+        except ValueError:
+            pass                                                         # config inválida: mantém a última boa em vez de derrubar o supervisor
+        arq_chave = config.get("gateway", {}).get("chave_arquivo", str(CHAVE))
+        g = filhos.get("gateway")
+        if g is not None and g.poll() is None and _assinatura(arq_chave) != assin.get("gateway"):
+            g.terminate()                                                # credencial removida ou trocada: o gateway em execução NÃO continua com a antiga
+            try:
+                g.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                g.kill()
+                g.wait()
         for nome in ("logd", "gateway"):
             p = filhos.get(nome)
             if p is not None and p.poll() is None:
                 continue
             if p is not None:
                 reinicios[nome] += 1
-            if nome == "gateway" and not Path(config.get("gateway", {}).get("chave_arquivo", str(CHAVE))).exists():
+            if nome == "gateway" and not Path(arq_chave).exists():
                 filhos.pop(nome, None)
-                continue                              # sem credencial provisionada o gateway NÃO sobe (fail-closed)
+                continue                                                 # sem credencial provisionada o gateway NÃO sobe (fail-closed)
             if time.monotonic() - ultimo[nome] < 1.0:
                 continue
             ultimo[nome] = time.monotonic()
+            if nome == "gateway":
+                assin["gateway"] = _assinatura(arq_chave)
             filhos[nome] = subprocess.Popen(comando_de_servico(spec, nome, config), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                            start_new_session=True)
+                                            start_new_session=True, env=env)
+        if ancora_a_cada and time.monotonic() - ultima_ancora > ancora_a_cada and filhos.get("logd") and filhos["logd"].poll() is None:
+            ultima_ancora = time.monotonic()
+            try:
+                import ancora_logs
+                ancora_logs.publicar(PROJETO, spec, ANCORAS)
+            except (SystemExit, OSError, ValueError):
+                pass                                                     # cadeia inválida ou destino inseguro: a falta de âncora aparece na verificação
         STATUS_SUPERVISOR.write_text(json.dumps({"pid": os.getpid(), "desde": inicio, "reinicios": reinicios,
                                                  "pids": {n: (p.pid if p.poll() is None else None) for n, p in filhos.items()},
                                                  "gateway_sem_credencial": "gateway" not in filhos}, indent=1))

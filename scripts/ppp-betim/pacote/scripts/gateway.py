@@ -28,6 +28,7 @@ import resource
 import socket
 import socketserver
 import ssl
+import stat
 import struct
 import sys
 import threading
@@ -95,18 +96,40 @@ def ler_proxy(arquivo):
     finally:
         os.close(d)
     p = urllib.parse.urlsplit(bruto)
-    if p.scheme != "http" or not p.hostname or not p.port:
+    try:
+        porta_ok = bool(p.port)
+    except ValueError:
+        porta_ok = False
+    if p.scheme != "http" or not p.hostname or not porta_ok:
         raise SystemExit("proxy deve ser http://[usuario:senha@]host:porta")
     cab = {}
     if p.username:
         import base64
         credencial = f"{urllib.parse.unquote(p.username)}:{urllib.parse.unquote(p.password or '')}"
         cab["Proxy-Authorization"] = "Basic " + base64.b64encode(credencial.encode("utf-8")).decode("ascii")
-    return p.hostname, p.port, cab
+    try:
+        porta = p.port
+    except ValueError:
+        raise SystemExit("porta do proxy inválida")
+    if not p.hostname or porta is None:
+        raise SystemExit("proxy deve ter host e porta")
+    return p.hostname, porta, cab
+
+
+def verificar_ca(arquivo):
+    """O arquivo de AC é parte da cadeia de confiança da credencial: arquivo comum, do root (ou do próprio usuário), sem escrita para grupo/outros."""
+    st = os.lstat(arquivo)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+        raise SystemExit("arquivo de CA deve ser arquivo comum (não link)")
+    if st.st_uid not in (0, os.geteuid()) or st.st_mode & 0o022:
+        raise SystemExit("arquivo de CA deve ser do root e sem escrita para grupo/outros")
 
 
 def contexto_tls(ca_arquivo=None):
-    """Verificação de certificado SEMPRE ligada; `ca_arquivo` acrescenta uma AC privada (ex.: inspeção TLS corporativa)."""
+    """Verificação de certificado SEMPRE ligada. `ca_arquivo` SUBSTITUI o repositório do sistema (só essa AC passa a ser confiável);
+    uma AC de inspeção corporativa dá ao operador do proxy acesso à credencial e ao conteúdo — limite inerente, exige decisão humana."""
+    if ca_arquivo:
+        verificar_ca(ca_arquivo)
     ctx = ssl.create_default_context(cafile=ca_arquivo) if ca_arquivo else ssl.create_default_context()
     ctx.check_hostname = True
     ctx.verify_mode = ssl.CERT_REQUIRED
@@ -150,6 +173,9 @@ class Taxa:
             return 0
 
 
+MAX_CONEXOES_ABERTAS = 64
+
+
 class Servidor(socketserver.ThreadingUnixStreamServer):
     request_queue_size = 128          # o padrão (5) faz clientes em rajada receberem EAGAIN no connect em vez de uma recusa controlada (429)
     daemon_threads = True
@@ -166,6 +192,8 @@ class Servidor(socketserver.ThreadingUnixStreamServer):
         self.limite = threading.BoundedSemaphore(MAX_SIMULTANEAS)
         self.por_papel = {nome: threading.BoundedSemaphore(MAX_POR_PAPEL) for nome in spec["papeis"]}
         self.taxa = {nome: Taxa(*TAXA_POR_PAPEL) for nome in spec["papeis"]}
+        self.taxa_desconhecido = Taxa(*TAXA_POR_PAPEL)       # recusas de uid sem papel também não podem inundar o log
+        self._vagas = threading.BoundedSemaphore(MAX_CONEXOES_ABERTAS)
         Path(caminho).unlink(missing_ok=True)
         antiga = os.umask(0o117)                     # nunca existe janela com o socket acessível a outros
         try:
@@ -174,6 +202,19 @@ class Servidor(socketserver.ThreadingUnixStreamServer):
             os.umask(antiga)
         os.chown(caminho, -1, spec["grupos"][spec["servicos"]["grupo_socket"]])
         os.chmod(caminho, 0o660)
+
+    def process_request(self, request, client_address):
+        """Teto de conexões abertas (threads): acima dele a conexão é fechada sem custo, em vez de esgotar descritores e derrubar todos os papéis."""
+        if not self._vagas.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        super().process_request(request, client_address)
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._vagas.release()
 
 
 class Manipulador(http.server.BaseHTTPRequestHandler):
@@ -269,18 +310,19 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
         partes = urllib.parse.urlsplit(bruto) if bruto.startswith("/") and not bruto.startswith("//") else None
         caminho = partes.path if partes else bruto[:200]
         if papel is None:
-            self._auditar("desconhecido", "negado", motivo="uid sem papel", metodo=self.command, caminho=caminho[:200])
+            if self.server.taxa_desconhecido.permite():
+                self._auditar("desconhecido", "negado", motivo="uid sem papel", metodo=self.command, caminho=caminho[:200])
             return self._recusar(403, "chamador não autorizado")
+        if not self.server.taxa[papel].permite():                    # ANTES de auditar recusas: um papel não consegue inundar o log com pedidos inválidos
+            n = self.server.taxa[papel].resumo_devido()
+            if n:
+                self._auditar(papel, "negado", motivo=f"taxa excedida ({n} requisições descartadas desde o último resumo)", metodo=self.command)
+            return self._recusar(429, "taxa excedida")
         valido = (partes is not None and self.command == "POST" and CAMINHO_SEGURO.match(caminho) and ".." not in caminho.split("/")
                   and caminho in self.server.permitidos)
         if not valido:
             self._auditar(papel, "negado", motivo="destino ou método fora da lista", metodo=self.command, caminho=caminho[:200])
             return self._recusar(403, "destino não permitido pelo gateway")
-        if not self.server.taxa[papel].permite():
-            n = self.server.taxa[papel].resumo_devido()
-            if n:
-                self._auditar(papel, "negado", motivo=f"taxa excedida ({n} requisições descartadas desde o último resumo)", metodo=self.command)
-            return self._recusar(429, "taxa excedida")
         if not self.server.por_papel[papel].acquire(blocking=False):
             self._auditar(papel, "negado", motivo="limite de conexões do papel", metodo=self.command, caminho=caminho)
             return self._recusar(429, "limite de conexões do papel")
@@ -361,7 +403,7 @@ def main(argv):
     ap.add_argument("--chave-arquivo")
     ap.add_argument("--chave-fd", type=int)
     ap.add_argument("--proxy-arquivo", help="arquivo 0600 do serviço com http://[usuario:senha@]host:porta (saída por CONNECT)")
-    ap.add_argument("--ca-arquivo", help="AC adicional (PEM) para o certificado do destino; a verificação nunca é desligada")
+    ap.add_argument("--ca-arquivo", help="AC (PEM) que SUBSTITUI o repositório do sistema para validar o destino; arquivo do root, sem escrita para outros; a verificação nunca é desligada")
     a = ap.parse_args(argv)
     if os.geteuid() == 0:
         raise SystemExit("o gateway não executa como root")

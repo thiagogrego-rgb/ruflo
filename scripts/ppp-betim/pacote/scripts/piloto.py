@@ -114,6 +114,11 @@ def executar(args):
             AMB.instalar_credencial(spec, chave_a, f"canario-sintetico-{args.rotulo}")
             sup = subprocess.Popen([sys.executable, "-I", "-B", str(Path(__file__).resolve()), "supervisor"], stdout=subprocess.DEVNULL,
                                    stderr=subprocess.DEVNULL, start_new_session=True)
+        if not lab:
+            if AMB.CONFIG_SERVICOS.exists():
+                problemas = AMB.validar_config_producao(json.loads(AMB.CONFIG_SERVICOS.read_text()), spec)
+                if problemas:
+                    raise SystemExit("modo api-real recusado:\n  - " + "\n  - ".join(problemas))
         if not _espera_sockets(spec, 40):
             raise SystemExit("serviços não subiram (logd/gateway): ver supervisor-status.json")
         ctx = C.Contexto(spec, modelo, "laboratorio-modelo-simulado" if lab else "api-real", claude=shutil.which("claude"))
@@ -162,6 +167,7 @@ def executar(args):
                 sup.kill()
         if lab:
             AMB.revogar_credencial(motivo=f"fim do piloto de laboratório {args.rotulo}")
+            AMB.CONFIG_SERVICOS.unlink(missing_ok=True)                  # a configuração de laboratório (http local, exceção de teste) não pode sobreviver
             if modelo:
                 modelo.fechar()
 
