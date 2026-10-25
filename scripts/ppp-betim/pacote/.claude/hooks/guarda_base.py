@@ -57,7 +57,9 @@ def registrar(evento, decisao, motivo, alvo=None):
     try:
         pasta = RAIZ / "logs"
         pasta.mkdir(exist_ok=True)
-        fd = os.open(pasta / "guarda.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640)
+        papel = os.environ.get("PPP_PAPEL", "")      # o lançador define; só escolhe QUAL log (cada papel tem o seu, só-anexar)
+        nome = f"guarda-{papel}.jsonl" if papel and papel.replace("-", "").isalnum() and papel.islower() else "guarda.jsonl"
+        fd = os.open(pasta / nome, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640)
         try:
             os.write(fd, (json.dumps(linha, ensure_ascii=False) + "\n").encode("utf-8"))
         finally:

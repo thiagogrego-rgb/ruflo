@@ -379,6 +379,10 @@ FONTES = (
     "testes/test_permissoes.py",
     "scripts/verificar_configuracao.py",
     "scripts/iniciar_sessao.py",
+    "scripts/isolamento.py",
+    "scripts/jaula.py",
+    "governanca/papeis.json",
+    "testes/test_isolamento.py",
     "testes/test_configuracao.py",
 )
 
