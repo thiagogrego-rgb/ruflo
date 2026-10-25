@@ -47,6 +47,18 @@ OPCOES_DO_LANCADOR = ("--dry-run", "--sandbox", "--jaula", "--sem-isolamento", "
 BLOQUEIOS_DE_REDE = ["WebFetch", "WebSearch"]
 
 
+def _vivo(caminho):
+    """True se há um processo escutando no socket (um socket remanescente de um serviço que morreu recusa a conexão)."""
+    import socket
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(2)
+            s.connect(caminho)
+        return True
+    except OSError:
+        return False
+
+
 def verificar_servico(caminho, uid_esperado, nome):
     """O socket precisa ser socket, da conta do serviço, numa pasta que só ela (ou root) pode alterar: ninguém ocupa o lugar do serviço."""
     try:
@@ -56,6 +68,8 @@ def verificar_servico(caminho, uid_esperado, nome):
         raise SystemExit(f"Sessão NÃO iniciada: {nome} indisponível (sem {nome}, sem sessão)")
     if not stat.S_ISSOCK(st.st_mode) or st.st_uid != uid_esperado:
         raise SystemExit(f"Sessão NÃO iniciada: {nome} não é um socket da conta esperada (uid {uid_esperado}): {caminho}")
+    if not _vivo(caminho):
+        raise SystemExit(f"Sessão NÃO iniciada: {nome} não responde (socket remanescente?): {caminho}")
     if pai.st_uid not in (0, uid_esperado) or pai.st_mode & 0o022 or stat.S_ISLNK(pai.st_mode):
         raise SystemExit(f"Sessão NÃO iniciada: a pasta de {nome} pode ser alterada por outras contas: {os.path.dirname(caminho)}")
     atual = os.path.dirname(os.path.realpath(caminho))              # e toda a cadeia de ancestrais até a raiz

@@ -11,11 +11,13 @@ import threading
 
 
 class ModeloFalso:
-    def __init__(self, roteiro):
+    def __init__(self, roteiro, atraso=0.0):
+        self.atraso = atraso                      # segundos de espera antes de cada resposta (permite inspecionar o processo vivo)
         self.roteiro = list(roteiro)               # [(nome_da_ferramenta, entrada_dict), ...]
         self.resultados = []                       # [{"ferramenta":..., "erro":bool, "texto":...}]
         self.requisicoes = []                      # [{"caminho":..., "ferramentas":[...], "cabecalhos":{...}}]
         self.ferramentas_vistas = set()
+        self.indisponivel = False                  # responde erro NÃO repetível (400) para provar que a falha chega à sessão sem travar
         self._uso = {}
         self._vistos = set()
         modelo = self
@@ -67,6 +69,17 @@ class ModeloFalso:
             h.end_headers()
             h.wfile.write(b"{}")
             return
+        if self.indisponivel:
+            erro = json.dumps({"type": "error", "error": {"type": "invalid_request_error", "message": "destino simulado indisponivel"}}).encode()
+            h.send_response(400)
+            h.send_header("Content-Type", "application/json")
+            h.send_header("Content-Length", str(len(erro)))
+            h.end_headers()
+            h.wfile.write(erro)
+            return
+        if self.atraso:
+            import time
+            time.sleep(self.atraso)
         if ferramentas:
             self.ferramentas_vistas.update(ferramentas)
             self._registrar_resultados(req)

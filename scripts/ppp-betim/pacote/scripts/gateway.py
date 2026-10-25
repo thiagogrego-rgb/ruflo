@@ -27,6 +27,7 @@ import re
 import resource
 import socket
 import socketserver
+import ssl
 import struct
 import sys
 import threading
@@ -83,6 +84,35 @@ def ler_chave(arquivo=None, fd=None):
     return chave
 
 
+def ler_proxy(arquivo):
+    """Proxy de saída (CONNECT) lido de arquivo 0600 do serviço: pode conter usuário:senha, por isso nunca vai a argv nem a log."""
+    d = os.open(arquivo, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        st = os.fstat(d)
+        if st.st_uid != os.geteuid() or st.st_mode & 0o077 or (st.st_mode & 0o170000) != 0o100000:
+            raise SystemExit("arquivo do proxy deve ser comum, do serviço e com modo 0600")
+        bruto = os.read(d, 4096).decode("utf-8").strip()
+    finally:
+        os.close(d)
+    p = urllib.parse.urlsplit(bruto)
+    if p.scheme != "http" or not p.hostname or not p.port:
+        raise SystemExit("proxy deve ser http://[usuario:senha@]host:porta")
+    cab = {}
+    if p.username:
+        import base64
+        credencial = f"{urllib.parse.unquote(p.username)}:{urllib.parse.unquote(p.password or '')}"
+        cab["Proxy-Authorization"] = "Basic " + base64.b64encode(credencial.encode("utf-8")).decode("ascii")
+    return p.hostname, p.port, cab
+
+
+def contexto_tls(ca_arquivo=None):
+    """Verificação de certificado SEMPRE ligada; `ca_arquivo` acrescenta uma AC privada (ex.: inspeção TLS corporativa)."""
+    ctx = ssl.create_default_context(cafile=ca_arquivo) if ca_arquivo else ssl.create_default_context()
+    ctx.check_hostname = True
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    return ctx
+
+
 def validar_upstream(url, spec, permitir_http=False):
     alvo = urllib.parse.urlsplit(url)
     esperado = urllib.parse.urlsplit(spec["rede"]["upstream"])
@@ -123,10 +153,12 @@ class Taxa:
 class Servidor(socketserver.ThreadingUnixStreamServer):
     daemon_threads = True
 
-    def __init__(self, caminho, spec, chave, upstream=None, logd_socket=None, permitir_http=False):
+    def __init__(self, caminho, spec, chave, upstream=None, logd_socket=None, permitir_http=False, proxy=None, ca_arquivo=None):
         self.origens = {spec["contas"][p["conta"]]: nome for nome, p in spec["papeis"].items()}
         self.chave = chave
         self.alvo = validar_upstream(upstream or spec["rede"]["upstream"], spec, permitir_http)
+        self.proxy = proxy
+        self.tls = contexto_tls(ca_arquivo)
         self.permitidos = frozenset(spec["rede"]["caminhos_permitidos"])
         self.logd = logd_socket or spec["servicos"]["logd_socket"]
         self.uid_log = spec["contas"][spec["servicos"]["conta_log"]]
@@ -261,8 +293,14 @@ class Manipulador(http.server.BaseHTTPRequestHandler):
             cab["x-api-key"] = self.server.chave
             cab["Content-Length"] = str(len(corpo))
             alvo = self.server.alvo
-            Con = http.client.HTTPSConnection if alvo.scheme == "https" else http.client.HTTPConnection
-            con = Con(alvo.hostname, alvo.port, timeout=TEMPO_UPSTREAM)
+            if alvo.scheme == "https" and self.server.proxy:
+                p_host, p_porta, p_cab = self.server.proxy
+                con = http.client.HTTPSConnection(p_host, p_porta, timeout=TEMPO_UPSTREAM, context=self.server.tls)
+                con.set_tunnel(alvo.hostname, alvo.port or 443, headers=p_cab)      # CONNECT; o TLS é negociado com o destino, não com o proxy
+            elif alvo.scheme == "https":
+                con = http.client.HTTPSConnection(alvo.hostname, alvo.port, timeout=TEMPO_UPSTREAM, context=self.server.tls)
+            else:
+                con = http.client.HTTPConnection(alvo.hostname, alvo.port, timeout=TEMPO_UPSTREAM)
             try:
                 destino = caminho + (("?" + partes.query) if partes.query else "")
                 con.request(self.command, destino, body=corpo or None, headers=cab)
@@ -305,6 +343,8 @@ def main(argv):
     ap.add_argument("--permitir-http-de-teste", action="store_true", help="SOMENTE testes locais: aceita upstream http/outro host")
     ap.add_argument("--chave-arquivo")
     ap.add_argument("--chave-fd", type=int)
+    ap.add_argument("--proxy-arquivo", help="arquivo 0600 do serviço com http://[usuario:senha@]host:porta (saída por CONNECT)")
+    ap.add_argument("--ca-arquivo", help="AC adicional (PEM) para o certificado do destino; a verificação nunca é desligada")
     a = ap.parse_args(argv)
     if os.geteuid() == 0:
         raise SystemExit("o gateway não executa como root")
@@ -314,7 +354,9 @@ def main(argv):
     if problemas:
         raise SystemExit("papeis.json inválido: " + "; ".join(problemas))
     chave = ler_chave(a.chave_arquivo, a.chave_fd)
-    srv = Servidor(a.socket or spec["servicos"]["gateway_socket"], spec, chave, a.upstream, a.logd_socket, a.permitir_http_de_teste)
+    proxy = ler_proxy(a.proxy_arquivo) if a.proxy_arquivo else None
+    srv = Servidor(a.socket or spec["servicos"]["gateway_socket"], spec, chave, a.upstream, a.logd_socket, a.permitir_http_de_teste,
+                   proxy, a.ca_arquivo)
     print("gateway pronto", flush=True)
     srv.serve_forever()
 

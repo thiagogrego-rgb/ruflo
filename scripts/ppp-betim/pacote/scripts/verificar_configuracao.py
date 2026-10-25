@@ -34,6 +34,7 @@ def arquivos_controlados(raiz):
     fixos = [".claude/settings.json", "governanca/matriz-agentes.json",
              "scripts/verificar_configuracao.py", "scripts/iniciar_sessao.py", "scripts/isolamento.py", "scripts/isolamento_base.py", "scripts/isolamento_so.py",
              "scripts/jaula.py", "scripts/logd.py", "scripts/gateway.py", "scripts/entrada_jaula.py",
+             "scripts/ancora_logs.py", "scripts/piloto_ambiente.py", "scripts/piloto_cenarios.py", "scripts/piloto_falhas.py", "scripts/piloto.py",
              "governanca/papeis.json", "governanca/sandbox-recomendado.json"]
     fixos += sorted(p.relative_to(raiz).as_posix() for p in (raiz / ".claude/hooks").glob("*.py"))
     agentes = sorted(p.relative_to(raiz).as_posix() for p in (raiz / ".claude/agents").glob("*.md"))

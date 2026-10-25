@@ -387,6 +387,11 @@ FONTES = (
     "scripts/logd.py",
     "scripts/gateway.py",
     "scripts/entrada_jaula.py",
+    "scripts/ancora_logs.py",
+    "scripts/piloto_ambiente.py",
+    "scripts/piloto_cenarios.py",
+    "scripts/piloto_falhas.py",
+    "scripts/piloto.py",
     "governanca/papeis.json",
     "governanca/GOV-07-isolamento-por-so.md",
     "governanca/GOV-08-riscos-criticos.md",
@@ -395,6 +400,7 @@ FONTES = (
     "testes/modelo_falso.py",
     "testes/test_servicos.py",
     "testes/test_runtime.py",
+    "testes/test_piloto.py",
     "testes/test_configuracao.py",
 )
 
