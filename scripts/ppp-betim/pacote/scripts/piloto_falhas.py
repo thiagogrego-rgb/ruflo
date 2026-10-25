@@ -90,18 +90,26 @@ def s08_agentes_e_skills(ctx):
             i += 1
             probe = "import sys,os\np=sys.argv[1]\nopen(p,'w').write('SINTETICO\\n'); os.unlink(p); print('GRAVOU')"
             ok_dac = ctx.como(papel, probe, args=[str(AMB.PROJETO / escrita / f"SINTETICO-dac-{papel}.tmp")]).stdout.strip() == "GRAVOU"
-        ok_alheia = any(d["decisao"] == "recusado" and f"não grava em {alheia}" in d["motivo"] for d in escritas) \
-            and bool(resposta(i) and resposta(i)["erro"]) and not (AMB.PROJETO / alheia / f"SINTETICO-invasao-{papel}.md").exists()
+        tools = next((l.split(":", 1)[1] for l in (AMB.PROJETO / ".claude/agents" / f"{agente}.md").read_text(encoding="utf-8").splitlines()
+                      if l.startswith("tools:")), "")
+        sem_write = "Write" not in [t.strip() for t in tools.split(",")]
+        arquivo_invasao = AMB.PROJETO / alheia / f"SINTETICO-invasao-{papel}.md"
+        if sem_write:                                # a ferramenta nem existe para o agente: a chamada falha antes de chegar ao guardião
+            ok_alheia = bool(resposta(i) and resposta(i)["erro"] and "No such tool available" in resposta(i)["texto"]) and not arquivo_invasao.exists() \
+                and not any(d.get("ferramenta") == "Write" for d in novos)
+        else:
+            ok_alheia = any(d["decisao"] == "recusado" and f"não grava em {alheia}" in d["motivo"] for d in escritas) \
+                and bool(resposta(i) and resposta(i)["erro"]) and not arquivo_invasao.exists()
         r_alh = ctx.como(papel, "import sys\ntry:\n open(sys.argv[1],'w'); print('GRAVOU')\nexcept OSError: print('NEGADO')",
                          args=[str(AMB.PROJETO / alheia / f"SINTETICO-dac-alheia-{papel}.tmp")])
         ok_dac_alheia = r_alh.stdout.strip() == "NEGADO"
         item = {"agente": agente, "n_autorizadas": n, "skill_nao_autorizada_testada": proibida, "skills_autorizadas_ok": ok_aut,
                 "skill_nao_autorizada_recusada_pelo_guardiao": ok_proib, "skill_externa_recusada_pelo_guardiao": ok_ext,
                 "gravacao_propria_permitida_pelo_guardiao_e_negada_sem_aprovacao_headless": ok_esc, "so_grava_na_propria_area_so": ok_dac,
-                "area_alheia_negada_pelo_so": ok_dac_alheia, "area_alheia_recusada_pelo_guardiao": ok_alheia, "sessao_terminou": r.returncode == 0}
+                "area_alheia_negada_pelo_so": ok_dac_alheia, "area_alheia_recusada_pelo_guardiao_ou_ferramenta_ausente": ok_alheia, "agente_sem_ferramenta_write": sem_write, "sessao_terminou": r.returncode == 0}
         por_agente[papel] = item
         volatil[papel] = texto_escrita
-        if not all(v for k, v in item.items() if k not in ("agente", "n_autorizadas", "skill_nao_autorizada_testada")):
+        if not all(v for k, v in item.items() if k not in ("agente", "n_autorizadas", "skill_nao_autorizada_testada", "agente_sem_ferramenta_write")):
             falhas.append(papel)
     skills_exercitadas = sorted({s for dados in ctx.spec["papeis"].values() for s in set(matriz[dados["agente_padrao"]]["skills"]) | set(SKILLS_COMUNS)})
     ev = {"agentes_exercitados": len(por_agente), "agentes_esperados": len(ctx.spec["papeis"]), "skills_do_projeto": len(todas),
