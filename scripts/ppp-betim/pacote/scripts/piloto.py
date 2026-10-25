@@ -69,7 +69,7 @@ def _executa_cenario(fn, *args):
     inicio = time.monotonic()
     try:
         r = fn(*args)
-    except Exception as erro:  # noqa: BLE001 — o piloto registra a falha do cenário em vez de abortar
+    except (Exception, SystemExit) as erro:  # noqa: BLE001 — o piloto registra a falha do cenário em vez de abortar
         return {"id": getattr(fn, "__name__", "?"), "titulo": getattr(fn, "__doc__", "") or "", "resultado": C.FALHOU,
                 "evidencia": {"excecao": f"{type(erro).__name__}: {str(erro)[:300]}"}, "volatil": {}}
     r["volatil"]["duracao_s"] = round(time.monotonic() - inicio, 1)

@@ -214,7 +214,8 @@ def f5_adulteracao_de_logs(ctx):
                          args=[str(AMB.PROJETO / "logs/rede.jsonl")])
             tentativas[papel] = r.stdout.strip()
         res["papeis_nao_escrevem_no_log_original"] = all(v == "NEGADO" for v in tentativas.values())
-        r = subprocess.run(["sh", "-c", f"echo x >> {AMB.PROJETO}/logs/rede.jsonl; : > {AMB.PROJETO}/logs/rede.jsonl"], capture_output=True, text=True)
+        # só-anexar permite ANEXAR (inclusive ao root) e bloqueia truncar/reescrever; por isso aqui se testa apenas a truncagem
+        r = subprocess.run(["sh", "-c", f": > {AMB.PROJETO}/logs/rede.jsonl"], capture_output=True, text=True)
         res["mesmo_root_nao_trunca_com_so_anexar"] = r.returncode != 0
         res["original_continua_integro"] = not logd.verificar(AMB.PROJETO / "logs/rede.jsonl")
         return res
