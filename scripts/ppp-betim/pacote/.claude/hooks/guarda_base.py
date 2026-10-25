@@ -44,21 +44,49 @@ def agente_do_evento(evento):
 def normaliza(texto):
     return unicodedata.normalize("NFC", texto).casefold()
 
+def _uid_do_servico_de_log():
+    """Uid da conta do serviço de log, lido da especificação do projeto (quem ocupar o socket sem ser essa conta não vale)."""
+    try:
+        spec = json.loads((RAIZ / "governanca" / "papeis.json").read_text(encoding="utf-8"))
+        return int(spec["contas"][spec["servicos"]["conta_log"]])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+def _em_user_namespace():
+    """True na jaula (user namespace próprio): lá o uid de OUTRAS contas aparece como 65534 (uid de estouro)."""
+    try:
+        with open("/proc/self/uid_map", encoding="ascii") as f:
+            return f.read().split() != ["0", "0", "4294967295"]
+    except OSError:
+        return False
+
 def _enviar_ao_servico(caminho, linha):
     """True só se o serviço de log (conta própria, encadeada por hash) confirmou a gravação; o papel não escreve em logs/."""
     import socket
+    import struct
+    esperado = _uid_do_servico_de_log()
+    if esperado is None:
+        return False
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
             s.settimeout(2.0)
             s.connect(caminho)
-            s.sendall((json.dumps({"dados": linha}, ensure_ascii=False) + "\n").encode("utf-8"))
+            _, uid, _ = struct.unpack("3i", s.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))
+            aceitos = {esperado} | ({65534} if _em_user_namespace() else set())
+            if uid not in aceitos:
+                return False        # (dentro da jaula a conta real do servidor não é visível: o lançador confere o dono do socket no host)
+            s.sendall((json.dumps({"dados": linha}, ensure_ascii=True) + "\n").encode("ascii"))
             return s.makefile("rb").readline().strip() == b"ok"
     except (OSError, ValueError):
         return False
 
+def modo_legado():
+    """Gravação direta em arquivo, SÓ para desenvolvimento/testes sintéticos (PPP_LOG_LEGADO=1). O padrão é fechado."""
+    return os.environ.get("PPP_LOG_LEGADO") == "1"
+
 def log_obrigatorio():
-    """O lançador por papel exige log confirmado: sem ele a operação é recusada (fail-closed)."""
-    return os.environ.get("PPP_LOGD_OBRIGATORIO") == "1"
+    """Fora do modo legado, sem log confirmado a operação é recusada (fail-closed)."""
+    return not modo_legado()
 
 def registrar(evento, decisao, motivo, alvo=None):
     """Registra a decisão. Devolve True se foi gravada; False se o log está indisponível."""
@@ -74,10 +102,12 @@ def registrar(evento, decisao, motivo, alvo=None):
     servico = os.environ.get("PPP_LOGD_SOCKET")
     if servico:
         return _enviar_ao_servico(servico, linha)
+    if not modo_legado():
+        return False
     try:
         pasta = RAIZ / "logs"
         pasta.mkdir(exist_ok=True)
-        papel = os.environ.get("PPP_PAPEL", "")      # modo legado (sem serviço): escolhe QUAL log, só desenvolvimento/testes
+        papel = os.environ.get("PPP_PAPEL", "")      # modo legado: escolhe QUAL log; só desenvolvimento/testes
         nome = f"guarda-{papel}.jsonl" if papel and papel.replace("-", "").isalnum() and papel.islower() else "guarda.jsonl"
         fd = os.open(pasta / nome, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640)
         try:
@@ -86,7 +116,7 @@ def registrar(evento, decisao, motivo, alvo=None):
             os.close(fd)
         return True
     except OSError:
-        return False        # a decisão já foi tomada; quem chama decide se a falta de log bloqueia (log_obrigatorio)
+        return False
 
 def carregar_matriz():
     try:
@@ -152,4 +182,4 @@ def _sigilosas_tocadas(partes, sigilosas, liberadas):
     return tocadas
 
 
-__all__ = ['AREA_ESCRITA', 'Consulta', 'FERRAMENTAS_ARQUIVO', 'FERRAMENTAS_LEITURA', 'GLOB_CHARS', 'LIMITE_GLOB', 'RAIZ', 'RAIZ_REAL', 'Recusa', '_prefixo_estatico', '_sigilosas_tocadas', 'agente_do_evento', 'carregar_matriz', 'carregar_politica', 'log_obrigatorio', 'normaliza', 'registrar', 'relativo_ao_projeto', 'resolver']
+__all__ = ['AREA_ESCRITA', 'Consulta', 'FERRAMENTAS_ARQUIVO', 'FERRAMENTAS_LEITURA', 'GLOB_CHARS', 'LIMITE_GLOB', 'RAIZ', 'RAIZ_REAL', 'Recusa', '_prefixo_estatico', '_sigilosas_tocadas', 'agente_do_evento', 'carregar_matriz', 'carregar_politica', 'log_obrigatorio', 'modo_legado', 'normaliza', 'registrar', 'relativo_ao_projeto', 'resolver']

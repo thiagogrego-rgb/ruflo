@@ -97,7 +97,13 @@ def _fixar(fd, uid, gid, modo):
 SUMIU_OU_TROCADO = (errno.ENOENT, errno.ELOOP, errno.ENOTDIR, errno.ESTALE)
 
 
+PROFUNDIDADE_MAXIMA = 64
+
+
 def _aplicar_dir(dirfd, rel, spec, raiz_dev, avisos):
+    if rel.count("/") >= PROFUNDIDADE_MAXIMA:
+        avisos.append(f"{rel}: profundidade acima de {PROFUNDIDADE_MAXIMA} — não percorrido")
+        return
     nomes_log = set(nomes_de_log(spec)) if rel == "logs" else set()
     for nome in os.listdir(dirfd):
         if nome in nomes_log:
@@ -157,8 +163,12 @@ def _criar_areas(raizfd, spec):
                     novo = _garantir_dir(fd, parte)
                     os.close(fd)
                     fd = novo
-            s = os.open(SENTINELA, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o640, dir_fd=fd)
-            os.close(s)
+            s = os.open(SENTINELA, os.O_RDONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o640, dir_fd=fd)
+            try:
+                if not stat.S_ISREG(os.fstat(s).st_mode):
+                    raise OSError(errno.EINVAL, f"{a['caminho']}/{SENTINELA} não é arquivo comum")
+            finally:
+                os.close(s)
         finally:
             os.close(fd)
 
@@ -189,28 +199,57 @@ def _aplicar_logs(raizfd, spec, avisos):
 
 
 def _aplicar_homes(home_base, spec):
-    Path(home_base).mkdir(parents=True, exist_ok=True)
+    """Cria/ajusta home e tmp de cada papel por descritor. O home_base precisa existir, ser do root e não ser gravável por papel."""
+    st = os.lstat(home_base)
+    if stat.S_ISLNK(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+        raise SystemExit(f"home_base {home_base} deve ser diretório real do root, sem escrita para grupo/outros (crie-o antes)")
     hb = os.open(home_base, O_DIR)
+    erros = []
     try:
         for nome, p in spec["papeis"].items():
             uid = spec["contas"][p["conta"]]
-            h = _garantir_dir(hb, nome)
             try:
-                _fixar(h, uid, uid, 0o700)
-                t = _garantir_dir(h, "tmp")
+                h = _garantir_dir(hb, nome)
                 try:
-                    _fixar(t, uid, uid, 0o700)
+                    _fixar(h, uid, uid, 0o700)
+                    t = _garantir_dir(h, "tmp")
+                    try:
+                        _fixar(t, uid, uid, 0o700)
+                    finally:
+                        os.close(t)
                 finally:
-                    os.close(t)
-            finally:
-                os.close(h)
+                    os.close(h)
+            except OSError as erro:
+                erros.append(f"{nome}: {erro}")           # um papel adulterado não impede os demais de serem corrigidos
     finally:
         os.close(hb)
+    if erros:
+        raise OSError("home(s) não ajustado(s) (link ou entrada plantada?): " + "; ".join(erros))
+
+
+def ancestrais_inseguros(raiz, spec):
+    """Diretórios acima da raiz que algum papel atravessaria SEM poder ou que poderia alterar (renomear/trocar a raiz)."""
+    div, real = [], os.path.realpath(raiz)
+    atual = real
+    while atual != "/":
+        st = os.stat(atual)
+        modo = stat.S_IMODE(st.st_mode)
+        for nome in spec["papeis"]:
+            uid, _, gids = ids_papel(spec, nome)
+            if atual != real and not _bit(uid, gids, st.st_uid, st.st_gid, modo, 1):
+                div.append(f"ancestral não atravessável pelo papel {nome}: {atual}")
+            if atual != real and not modo & 0o1000 and _bit(uid, gids, st.st_uid, st.st_gid, modo, 2) and uid != 0:
+                div.append(f"ancestral gravável pelo papel {nome} (permite trocar a raiz): {atual}")
+        atual = os.path.dirname(atual)
+    return div
 
 
 def aplicar(raiz, spec, home_base=None):
     if os.geteuid() != 0:
         raise SystemExit("aplicar exige root (chown); nada foi alterado")
+    perigosos = [d for d in ancestrais_inseguros(raiz, spec) if "gravável" in d]
+    if perigosos:
+        raise SystemExit("aplicar recusado: a raiz poderia ser trocada por um papel:\n  - " + "\n  - ".join(perigosos[:5]))
     avisos = []
     raizfd = os.open(raiz, O_DIR)
     try:
@@ -232,8 +271,10 @@ def aplicar(raiz, spec, home_base=None):
 def _xattrs_perigosos(caminho):
     try:
         return [x for x in os.listxattr(caminho, follow_symlinks=False) if x in XATTRS_PERIGOSOS]
-    except OSError:
-        return []           # filesystem sem xattr: nada a conferir
+    except OSError as erro:
+        if erro.errno in (errno.ENOTSUP, errno.ENODATA):
+            return []       # filesystem sem xattr: nada a conferir
+        return ["xattr ilegível"]       # qualquer outro erro (ex.: EACCES) NÃO vira "sem ACL"
 
 
 def _mais_permissivo(encontrado, esperado):
@@ -305,18 +346,7 @@ def auditar(raiz, spec, home_base=None):
             div.append("fs.protected_hardlinks != 1: hardlink de arquivo legível por papel sem escrita seria possível")
     except OSError:
         div.append("não foi possível ler fs.protected_hardlinks")
-    real = os.path.realpath(raiz)
-    atual = real
-    while atual != "/":
-        st = os.stat(atual)
-        for nome in spec["papeis"]:
-            uid, _, gids = ids_papel(spec, nome)
-            modo = stat.S_IMODE(st.st_mode)
-            if atual != real and not _bit(uid, gids, st.st_uid, st.st_gid, modo, 1):
-                div.append(f"ancestral não atravessável pelo papel {nome}: {atual}")
-            if atual != real and uid != st.st_uid and not modo & 0o1000 and _bit(uid, gids, st.st_uid, st.st_gid, modo, 2):
-                div.append(f"ancestral gravável pelo papel {nome} (permite trocar a raiz): {atual}")
-        atual = os.path.dirname(atual)
+    div.extend(ancestrais_inseguros(raiz, spec))
     if home_base:
         for nome, p in spec["papeis"].items():
             for sub in (Path(home_base) / nome, Path(home_base) / nome / "tmp"):
@@ -374,12 +404,16 @@ def _abrir_rw(caminho):
         pass
 
 
+NEGACOES = (errno.EACCES, errno.EPERM)
+
+
 def _tentar(fn):
+    """True = a operação funcionou; False = o kernel NEGOU (EACCES/EPERM); None = falhou por outro motivo (inconclusivo)."""
     try:
         fn()
         return True
-    except OSError:
-        return False
+    except OSError as erro:
+        return False if erro.errno in NEGACOES else None
 
 
 def _sondas(raiz, spec, papel):
@@ -404,12 +438,7 @@ def _sondas(raiz, spec, papel):
                 _tentar(lambda: os.unlink(nome))
                 escrevivel = escrevivel or d
             res[f"{c}|sobrescrever"] = _tentar(lambda: _abrir_rw(s))
-            novo = d / f".sentinela-{pid}"
-
-            def renomear():
-                os.rename(s, novo)
-                os.rename(novo, s)
-            res[f"{c}|renomear"] = _tentar(renomear)
+            res[f"{c}|renomear"] = os.access(d, os.W_OK | os.X_OK) and os.access(d.parent, os.X_OK)       # renomear exige escrita na pasta (sem renomear de fato)
         ataques = {}
         if escrevivel is not None:
             for a in spec["areas"]:
@@ -428,16 +457,15 @@ def _sondas(raiz, spec, papel):
                     os.link(s, duro)
                     os.unlink(duro)
                 ataques[f"{a['caminho']}|hardlink"] = _tentar(via_duro)
-        ataques["raiz|mover_area_registros"] = _tentar(lambda: os.rename(raiz / "registros", raiz / "registros-movido"))
-        if ataques["raiz|mover_area_registros"]:
-            _tentar(lambda: os.rename(raiz / "registros-movido", raiz / "registros"))
+        ataques["raiz|mover_area_registros"] = os.access(raiz, os.W_OK | os.X_OK)         # renomear registros/ exige escrita na raiz
         logs = {}
         for nome in nomes_de_log(spec):
             arq = raiz / "logs" / nome
-            logs[f"{nome}|anexar"] = _tentar(lambda: os.close(os.open(arq, os.O_WRONLY | os.O_APPEND)))
-            logs[f"{nome}|truncar"] = _tentar(lambda: os.close(os.open(arq, os.O_WRONLY | os.O_TRUNC)))
-            logs[f"{nome}|apagar"] = _tentar(lambda: os.unlink(arq))
-            logs[f"{nome}|criar_outro"] = _tentar(lambda: os.close(os.open(raiz / "logs" / f"x-{pid}", os.O_CREAT | os.O_WRONLY, 0o600)))
+            # sem tocar nos logs reais: acesso de escrita no arquivo cobre anexar e truncar; escrita na pasta cobre apagar/criar
+            logs[f"{nome}|anexar"] = os.access(arq, os.W_OK)
+            logs[f"{nome}|truncar"] = os.access(arq, os.W_OK)
+            logs[f"{nome}|apagar"] = os.access(raiz / "logs", os.W_OK | os.X_OK)
+            logs[f"{nome}|criar_outro"] = os.access(raiz / "logs", os.W_OK | os.X_OK)
         return {"areas": res, "ataques": ataques, "logs": logs}
     return _como(uid, gid, gids, corpo)
 
@@ -460,7 +488,9 @@ def sondar(raiz, spec):
         for chave, obtido in r["areas"].items():
             caminho, op = chave.split("|")
             previsto = prever(spec, papel, caminho, op)
-            if obtido != previsto:
+            if obtido is None:
+                divergencias.append(f"{papel} {caminho} {op}: INCONCLUSIVO (falhou por outro motivo que não a negação do kernel)")
+            elif obtido != previsto:
                 divergencias.append(f"{papel} {caminho} {op}: obtido {obtido}, previsto {previsto}")
         for chave, obtido in r["ataques"].items():
             caminho, ataque = chave.split("|")
@@ -470,7 +500,9 @@ def sondar(raiz, spec):
                 previsto = prever(spec, papel, caminho, "ler") and prever(spec, papel, caminho, "sobrescrever")
             else:
                 previsto = False
-            if obtido != previsto:
+            if obtido is None:
+                divergencias.append(f"{papel} ataque {chave}: INCONCLUSIVO")
+            elif obtido != previsto:
                 divergencias.append(f"{papel} ataque {chave}: obtido {obtido}, previsto {previsto}")
         for chave, obtido in r["logs"].items():
             nome, op = chave.split("|")

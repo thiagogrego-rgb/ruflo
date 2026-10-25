@@ -63,7 +63,7 @@ class DestinoFalso:
                 corpo = self.rfile.read(tam) if tam else b""
                 registro.append({"metodo": self.command, "caminho": self.path, "cabecalhos": {k.lower(): v for k, v in self.headers.items()},
                                  "corpo": corpo})
-                if self.path.startswith("/v1/stream"):
+                if self.path.startswith("/v1/messages") and b'"stream"' in corpo:
                     self.send_response(200)
                     self.send_header("Content-Type", "text/event-stream")
                     self.end_headers()
@@ -103,6 +103,8 @@ class Ambiente(unittest.TestCase):
         for a in self.spec["areas"]:
             (self.raiz / a["caminho"]).mkdir(parents=True, exist_ok=True)
         self.homes = self.base / "homes"
+        self.homes.mkdir()
+        os.chmod(self.homes, 0o755)
         self.avisos = I.aplicar(self.raiz, self.spec, self.homes)
         # cópia do código dos serviços fora do projeto (em produção: instalação imutável do administrador)
         self.svc = self.base / "svc"
@@ -171,7 +173,7 @@ class Ambiente(unittest.TestCase):
         self.destino = self.destino or DestinoFalso()
         return self._subir("gateway", "ppp-rede", [str(self.svc / "scripts/gateway.py"), "--raiz", str(self.raiz), "--spec",
                                                    str(self.svc / "governanca/papeis.json"), "--socket", str(self.gw_socket),
-                                                   "--logd-socket", str(self.logd_socket), "--upstream",
+                                                   "--logd-socket", str(self.logd_socket), "--permitir-http-de-teste", "--upstream",
                                                    f"http://127.0.0.1:{self.destino.porta}", "--chave-arquivo", str(self.chave_arquivo)])
 
     def requisicao_como(self, papel, metodo="POST", caminho="/v1/messages", cabecalhos=None, corpo=b"{\"x\":1}", chunked=False,

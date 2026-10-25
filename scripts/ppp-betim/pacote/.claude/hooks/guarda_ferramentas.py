@@ -49,8 +49,9 @@ def decide_escrita(evento, matriz):
     if agente:
         if agente not in matriz:
             raise Recusa(f"agente '{agente}' fora da matriz não grava arquivos")
-        if f"{partes[0]}/{partes[1]}" not in matriz[agente].get("escrita", []):
-            raise Recusa(f"agente '{agente}' não grava em {partes[0]}/{partes[1]}")
+        caminho_rel = "/".join(partes)
+        if not any(caminho_rel.startswith(destino + "/") for destino in matriz[agente].get("escrita", [])):
+            raise Recusa(f"agente '{agente}' não grava em {'/'.join(partes[:-1])}")
     return "/".join(partes)
 
 def decide_leitura(evento):
@@ -128,6 +129,18 @@ def _estouro():
     sys.stderr.flush()
     os._exit(2)
 
+def _recusa_final(mensagem):
+    print(mensagem, file=sys.stderr)
+    sys.stderr.flush()
+    os._exit(2)
+
+def _tentar_registrar(evento, decisao, motivo, alvo=None):
+    """Registra sem nunca deixar uma exceção virar código de saída diferente de 2 (só o 2 bloqueia no Claude Code)."""
+    try:
+        return registrar(evento, decisao, motivo, alvo)
+    except BaseException:
+        return False
+
 def main():
     evento = None
     vigia = threading.Timer(TEMPO_MAXIMO, _estouro)
@@ -138,10 +151,10 @@ def main():
         alvo = decide(evento)
     except Consulta as erro:
         if isinstance(evento, dict) and evento.get("permission_mode") == "bypassPermissions":
-            registrar(evento, "recusado", f"{erro} (modo bypassPermissions: sem consulta humana)")
+            _tentar_registrar(evento, "recusado", f"{erro} (modo bypassPermissions: sem consulta humana)")
             print(f"GOV-05: operação recusada — {erro}", file=sys.stderr)
             return 2
-        if not registrar(evento, "consulta-humana", str(erro)) and log_obrigatorio():
+        if not _tentar_registrar(evento, "consulta-humana", str(erro)) and log_obrigatorio():
             print("GOV-08: serviço de log indisponível; operação recusada", file=sys.stderr)
             return 2
         print(json.dumps({"hookSpecificOutput": {
@@ -149,19 +162,22 @@ def main():
             "permissionDecisionReason": f"GOV-05: {erro}; confirmação humana necessária"}}))
         return 0
     except Recusa as erro:
-        registrar(evento, "recusado", str(erro))
+        _tentar_registrar(evento, "recusado", str(erro))
         print(f"GOV-05: operação recusada — {erro}", file=sys.stderr)
         return 2
-    except Exception as erro:       # falha interna: recusa (fail-closed)
-        registrar(evento, "recusado", f"falha interna: {type(erro).__name__}")
-        print(f"GOV-05: falha interna do guarda ({type(erro).__name__}); operação recusada",
-              file=sys.stderr)
+    except BaseException as erro:       # falha interna: recusa (fail-closed)
+        _tentar_registrar(evento, "recusado", f"falha interna: {type(erro).__name__}")
+        print(f"GOV-05: falha interna do guarda ({type(erro).__name__}); operação recusada", file=sys.stderr)
         return 2
-    gravado = registrar(evento, "permitido", "ok", alvo)
-    if not gravado and log_obrigatorio():
+    if not _tentar_registrar(evento, "permitido", "ok", alvo) and log_obrigatorio():
         print("GOV-08: serviço de log indisponível; operação recusada (sem trilha, sem execução)", file=sys.stderr)
         return 2
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException:
+        _recusa_final("GOV-08: falha inesperada no guarda; operação recusada")

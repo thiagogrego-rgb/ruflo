@@ -39,7 +39,7 @@ def argumentos_jaula(spec, papel, raiz, home, uid=None, gid=None, rede="gateway"
         raise ValueError(f"modo de rede desconhecido: {rede}")
     raiz, home = str(raiz), str(home)
     a = [shutil.which("bwrap") or "bwrap", "--die-with-parent", "--unshare-user", "--unshare-ipc",
-         "--unshare-pid", "--unshare-uts", "--cap-drop", "ALL"]      # sem --new-session: quebraria a sessão interativa (não testada)
+         "--unshare-pid", "--unshare-uts", "--unshare-cgroup-try", "--disable-userns", "--cap-drop", "ALL"]      # sem --new-session: quebraria a sessão interativa (não testada)
     if rede == "gateway":
         a.append("--unshare-net")
     if uid is not None:
@@ -56,14 +56,21 @@ def argumentos_jaula(spec, papel, raiz, home, uid=None, gid=None, rede="gateway"
         for caminho, modo in sorted((x for x in expor if _dentro(x[0], pasta)), key=lambda x: len(x[0])):
             a += ["--bind" if modo == "rw" else "--ro-bind", caminho, caminho]
     if not any(_dentro(home, p) for p in OCULTAR if os.path.isdir(p)):
+        pai = os.path.dirname(home)
+        if pai not in ("", "/") and not _dentro(raiz, pai) and not _dentro(pai, raiz) and os.path.isdir(pai):
+            a += ["--tmpfs", pai]                   # esconde os homes dos OUTROS papéis (só o próprio volta, abaixo)
         a += ["--bind", home, home]                 # home fora das pastas ocultas: só precisa ficar gravável
     for area in spec["areas"]:
         caminho = os.path.join(raiz, area["caminho"]) if area["caminho"] != "." else raiz
         if papel in area["escrita"]:
             a += ["--bind", caminho, caminho]
-    for area in spec["areas"]:
+    ocultas = []
+    for area in sorted(spec["areas"], key=lambda x: len(x["caminho"])):        # pais antes dos filhos
         if papel not in area["leitura"]:        # oculta por falta de leitura, não pelo rótulo "sigilosa"
             caminho = os.path.join(raiz, area["caminho"])
+            if any(_dentro(caminho, o) for o in ocultas):
+                continue                         # já está dentro de uma pasta oculta (e somente leitura)
+            ocultas.append(caminho)
             a += ["--tmpfs", caminho, "--remount-ro", caminho]
     return a + ["--chdir", raiz]
 

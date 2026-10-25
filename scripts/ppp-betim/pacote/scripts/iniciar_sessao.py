@@ -23,6 +23,7 @@ Não substitui revisão humana nem autentica o usuário. Settings gerenciados da
 import json
 import os
 import shutil
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -38,13 +39,38 @@ ENV_AUTENTICACAO = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OA
                     "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE")
 ENV_PERMITIDAS = ENV_AUTENTICACAO + ("LANG", "TERM")
 SEGREDOS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PROXY")
-OPCOES_PROIBIDAS = ("--settings", "--setting-sources", "--dangerously-skip-permissions", "--permission-mode",
-                    "--allow-dangerously-skip-permissions", "--add-dir", "--mcp-config", "--plugin-dir")
-OPCOES_DO_LANCADOR = ("--dry-run", "--sandbox", "--jaula", "--sem-isolamento")
+# Lista BRANCA do que o operador pode repassar ao claude (tudo que começa com '-' e não está aqui é recusado).
+OPCOES_PERMITIDAS = {"-p", "--print", "--output-format", "--input-format", "--agent", "--model", "--verbose", "--max-turns",
+                     "--continue", "-c", "--resume", "-r", "--session-id", "--include-partial-messages", "--fork-session"}
+FLAGS_FIXAS = ["--setting-sources", "project", "--strict-mcp-config"]      # nada de MCP do HOME gravável, nem settings `user`/`local`
+OPCOES_DO_LANCADOR = ("--dry-run", "--sandbox", "--jaula", "--sem-isolamento", "--permitir-servicos-de-teste")
 BLOQUEIOS_DE_REDE = ["WebFetch", "WebSearch"]
 
 
-def _limpar_temporarios_antigos(dias=2):
+def verificar_servico(caminho, uid_esperado, nome):
+    """O socket precisa ser socket, da conta do serviço, numa pasta que só ela (ou root) pode alterar: ninguém ocupa o lugar do serviço."""
+    try:
+        st = os.lstat(caminho)
+        pai = os.lstat(os.path.dirname(caminho))
+    except OSError:
+        raise SystemExit(f"Sessão NÃO iniciada: {nome} indisponível (sem {nome}, sem sessão)")
+    if not stat.S_ISSOCK(st.st_mode) or st.st_uid != uid_esperado:
+        raise SystemExit(f"Sessão NÃO iniciada: {nome} não é um socket da conta esperada (uid {uid_esperado}): {caminho}")
+    if pai.st_uid not in (0, uid_esperado) or pai.st_mode & 0o022 or stat.S_ISLNK(pai.st_mode):
+        raise SystemExit(f"Sessão NÃO iniciada: a pasta de {nome} pode ser alterada por outras contas: {os.path.dirname(caminho)}")
+
+
+def _terminal_inseguro():
+    """True se o lançador tem terminal de controle e o kernel ainda permite TIOCSTI (a jaula não usa --new-session: quebraria o uso interativo)."""
+    try:
+        if Path("/proc/sys/dev/tty/legacy_tiocsti").read_text().strip() != "1":
+            return False
+    except OSError:
+        return False
+    return any(os.isatty(fd) for fd in (0, 1, 2))
+
+
+def _limpar_temporarios_antigos(dias=30):
     """Remove arquivos de settings gerados em lançamentos anteriores (só os do próprio root, em /var/tmp)."""
     import time
     pasta = Path("/var/tmp")
@@ -66,7 +92,7 @@ def _temporario_do_root(conteudo):
     fd, caminho = tempfile.mkstemp(prefix="ppp-settings-", suffix=".json", dir="/var/tmp" if os.path.isdir("/var/tmp") else None)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(conteudo, f, ensure_ascii=False)
-    os.chmod(caminho, 0o644)
+        os.fchmod(f.fileno(), 0o644)
     return caminho
 
 
@@ -94,7 +120,7 @@ def settings_do_papel(spec, papel, sandbox=False):
 def ambiente_do_papel(papel, home, env_origem=None, rede="gateway", logd_socket=None):
     env_origem = os.environ if env_origem is None else env_origem
     env = {"PATH": PATH_FIXO, "HOME": str(home), "TMPDIR": str(Path(home) / "tmp"), "PPP_PAPEL": papel,
-           "PYTHONDONTWRITEBYTECODE": "1", "PPP_LOGD_OBRIGATORIO": "1"}
+           "PYTHONDONTWRITEBYTECODE": "1"}
     if logd_socket:
         env["PPP_LOGD_SOCKET"] = str(logd_socket)
     permitidas = ENV_PERMITIDAS if rede == "aberta" else ("LANG", "TERM")       # gateway: a sessão nunca recebe credencial
@@ -103,29 +129,29 @@ def ambiente_do_papel(papel, home, env_origem=None, rede="gateway", logd_socket=
 
 
 def plano_do_papel(spec, papel, argumentos, claude, home_base=None, dry_run=False, sandbox=False, jaula=False,
-                   rede="gateway", logd_socket=None, gateway_socket=None):
+                   rede="gateway", logd_socket=None, gateway_socket=None, servicos_de_teste=False):
     """Monta (comando, env, cwd, uid, gid, gids) do papel; levanta SystemExit em qualquer recusa."""
     if papel not in spec["papeis"]:
         raise SystemExit(f"papel desconhecido: {papel} (válidos: {', '.join(spec['papeis'])})")
     for a in argumentos:
-        if a.split("=", 1)[0] in OPCOES_PROIBIDAS:
-            raise SystemExit(f"opção recusada (reabriria configuração ou permissões): {a}")
+        if a.startswith("-") and a.split("=", 1)[0] not in OPCOES_PERMITIDAS:
+            raise SystemExit(f"opção recusada (fora da lista branca; reabriria configuração, ferramentas ou permissões): {a}")
     if rede not in ("gateway", "aberta"):
         raise SystemExit(f"modo de rede desconhecido: {rede}")
     uid, gid, gids = ISO.ids_papel(spec, papel)
     euid = os.geteuid()
-    if euid not in (0, uid):
-        raise SystemExit(f"execute como root (para rebaixar) ou como a conta do papel (uid {uid}); uid atual {euid}")
+    if euid != 0:
+        raise SystemExit("execute como root: só o root cria o settings do papel fora do alcance dele, audita a árvore e rebaixa o processo")
     home_raiz = home_base or spec["home_base"]
     home = Path(home_raiz) / papel
-    if euid == 0:
-        div = ISO.auditar(V.RAIZ, spec, None if dry_run else home_raiz)
-        if div:
-            raise SystemExit("Sessão NÃO iniciada: isolamento do SO divergente:\n  - " + "\n  - ".join(div[:20]))
-    elif set(os.getgroups()) | {gid} != set(gids):
-        raise SystemExit("grupos do processo diferem dos do papel; use o lançador como root ou `sudo -u` com os grupos corretos")
+    div = ISO.auditar(V.RAIZ, spec, None if dry_run else home_raiz)
+    if div:
+        raise SystemExit("Sessão NÃO iniciada: isolamento do SO divergente:\n  - " + "\n  - ".join(div[:20]))
+    if not dry_run and _terminal_inseguro():
+        raise SystemExit("Sessão NÃO iniciada: há terminal de controle e dev.tty.legacy_tiocsti=1 (a sessão poderia injetar teclas no "
+                         "terminal do operador). Defina `sysctl dev.tty.legacy_tiocsti=0` ou lance sem terminal (-p, serviço).")
     padrao = spec["papeis"][papel].get("agente_padrao")
-    if "--agent" not in argumentos:
+    if not any(a == "--agent" or a.startswith("--agent=") for a in argumentos):
         if not padrao:
             raise SystemExit(f"o papel '{papel}' exige --agent <agente> explícito")
         argumentos = ["--agent", padrao, *argumentos]
@@ -137,6 +163,10 @@ def plano_do_papel(spec, papel, argumentos, claude, home_base=None, dry_run=Fals
             raise SystemExit("Sessão NÃO iniciada: serviço de log indisponível (sem trilha, sem sessão)")
         if rede == "gateway" and (not gateway_socket or not os.path.exists(gateway_socket)):
             raise SystemExit("Sessão NÃO iniciada: gateway de rede indisponível (sem rede, sem sessão)")
+        if not servicos_de_teste:
+            verificar_servico(logd_socket, spec["contas"][servicos["conta_log"]], "serviço de log")
+            if rede == "gateway":
+                verificar_servico(gateway_socket, spec["contas"][servicos["conta_rede"]], "gateway de rede")
     env = ambiente_do_papel(papel, home, rede=rede, logd_socket=logd_socket)
     extra_ro = [os.path.dirname(s) for s in (logd_socket, gateway_socket) if s and os.path.dirname(s) != servicos.get("dir")]
     extra_ro.append(os.path.dirname(os.path.realpath(claude)))      # o executável precisa continuar visível se estiver numa pasta oculta
@@ -145,14 +175,13 @@ def plano_do_papel(spec, papel, argumentos, claude, home_base=None, dry_run=Fals
     else:
         settings = settings_do_papel(spec, papel, sandbox)
         extra_ro.append(settings)
-    flags = ["--settings", settings, "--setting-sources", "project"]
+    flags = ["--settings", settings, *FLAGS_FIXAS]
     prefixo = []
-    if euid == 0:
-        setpriv = shutil.which("setpriv")
-        if not setpriv:
-            raise SystemExit("setpriv (util-linux) não encontrado: sem como rebaixar privilégios com segurança")
-        prefixo = [setpriv, f"--reuid={uid}", f"--regid={gid}", "--groups=" + ",".join(str(g) for g in gids if g != gid),
-                   "--no-new-privs", "--inh-caps=-all", "--bounding-set=-all"]
+    setpriv = shutil.which("setpriv")
+    if not setpriv:
+        raise SystemExit("setpriv (util-linux) não encontrado: sem como rebaixar privilégios com segurança")
+    prefixo = [setpriv, f"--reuid={uid}", f"--regid={gid}", "--groups=" + ",".join(str(g) for g in gids if g != gid),
+               "--no-new-privs", "--inh-caps=-all", "--bounding-set=-all"]
     envolucro = []
     if jaula or rede == "gateway":
         if not shutil.which("bwrap"):
@@ -202,6 +231,7 @@ def main(argv):
     sandbox = "--sandbox" in argv
     jaula = "--jaula" in argv
     sem_isolamento = "--sem-isolamento" in argv
+    servicos_de_teste = "--permitir-servicos-de-teste" in argv
     resto = [a for a in argv if a not in OPCOES_DO_LANCADOR]
     papel, resto = _opcao(resto, "--papel")
     claude, resto = _opcao(resto, "--claude")
@@ -222,6 +252,7 @@ def main(argv):
         if seco:
             print(" ".join(comando))
             return 0
+        os.environ["PPP_LOG_LEGADO"] = "1"      # modo sintético: o guarda grava o log direto no arquivo (sem serviço de log)
         os.chdir(V.RAIZ)
         os.execv(comando[0], comando)
     problemas = V.verificar()
@@ -239,13 +270,14 @@ def main(argv):
         print("AVISO: --rede aberta: a sessão tem rede do host e recebe a credencial no ambiente; use SOMENTE com dados sintéticos.",
               file=sys.stderr)
     comando, env, cwd, uid, gid, gids = plano_do_papel(spec, papel, resto, claude, home_base, seco, sandbox, jaula, rede,
-                                                       logd_socket, gateway_socket)
+                                                       logd_socket, gateway_socket, servicos_de_teste)
     if seco:
         print(json.dumps({"comando": mascarar(comando), "env": mascarar_ambiente(env), "cwd": str(cwd), "uid": uid, "gid": gid,
                           "grupos": gids, "rede": rede}))
         return 0
     os.chdir(cwd)
     os.umask(0o027)
+    os.closerange(3, 4096)              # nenhum descritor herdado do operador (ex.: --chave-fd) chega à sessão
     os.execve(comando[0], comando, dict(env))       # credenciais (modo aberto) só no ambiente herdado, nunca em argv
 
 

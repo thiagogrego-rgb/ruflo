@@ -4,6 +4,7 @@ Sem efeitos colaterais: nada aqui altera arquivos, contas ou processos.
 """
 import json
 import os
+import re
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
@@ -76,6 +77,9 @@ def prever(spec, papel, rel, op):
     raise ValueError(op)
 
 
+MODO = re.compile(r"^[0-7]{4}$")
+
+
 def _validar_forma(spec):
     p = []
     for chave in ("contas", "grupos", "papeis", "areas"):
@@ -93,6 +97,23 @@ def _validar_forma(spec):
         for k in ("leitura", "escrita"):
             if not isinstance(a.get(k), list) or any(x not in spec["papeis"] for x in a.get(k, [])):
                 p.append(f"área {a.get('caminho')}: '{k}' deve ser lista de papéis existentes")
+    for a in spec["areas"]:
+        for k in ("caminho", "dono", "grupo", "modo_dir", "modo_arq", "leitura", "escrita"):
+            if k not in a:
+                p.append(f"área {a.get('caminho')}: campo obrigatório ausente: {k}")
+        for k in ("modo_dir", "modo_arq"):
+            if k in a and not (isinstance(a[k], str) and MODO.match(a[k])):
+                p.append(f"área {a.get('caminho')}: {k} deve ser octal de quatro dígitos")
+    for k in ("logd_socket", "gateway_socket", "dir", "conta_log", "conta_rede", "grupo_socket", "grupos_contas_servico"):
+        if k not in spec.get("servicos", {}):
+            p.append(f"servicos.{k} ausente")
+    if "upstream" not in spec.get("rede", {}) or not spec.get("rede", {}).get("caminhos_permitidos"):
+        p.append("rede.upstream e rede.caminhos_permitidos são obrigatórios")
+    if not str(spec.get("home_base", "")).startswith("/"):
+        p.append("home_base deve ser caminho absoluto")
+    for nome, papel in spec["papeis"].items():
+        if not papel.get("agente_padrao"):
+            p.append(f"papel '{nome}' sem agente_padrao")
     caminhos = [a.get("caminho") for a in spec["areas"]]
     if len(set(caminhos)) != len(caminhos):
         p.append("áreas duplicadas")
@@ -140,8 +161,10 @@ def validar(spec):
         if outros:
             problemas.append(f"área sigilosa {c} legível ou gravável por 'outros'")
         dono_papel = por_conta.get(a["dono"])
-        if a["escrita"] != ([dono_papel] if dono_papel and a["escrita"] else []):
-            problemas.append(f"área {c}: escrita declarada deve ser exatamente o papel dono da área (ou vazia)")
+        if a["escrita"] != ([dono_papel] if dono_papel else []):
+            problemas.append(f"área {c}: quem escreve deve ser exatamente o papel dono da área (e só ele); dono de papel sem escrita é proibido")
+        if a.get("sigilosa") and dono_papel:
+            problemas.append(f"área sigilosa {c} tem como dono uma conta de papel (o dono sempre pode mudar modo e grupo): use uma pasta-casca do administrador")
     if problemas:
         return problemas
     for a in spec["areas"]:

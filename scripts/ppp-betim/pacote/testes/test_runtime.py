@@ -39,7 +39,7 @@ class TestRuntimeReal(Ambiente):
         self.cria("dados/entrada/e.txt", MARCADOR_ENTRADA)
         self.cria("produtos/P3/ok.md", "CONTEUDO-DO-P3")
         self.cria("produtos/P4/outro.md", "CONTEUDO-DO-P4")
-        self.cria("produtos/DR/saida.txt", MARCADOR_DR)
+        self.cria("produtos/DR/saida/saida.txt", MARCADOR_DR)
         self.cria("produtos/C/plano.md", "PLANO-C")
 
     def cria(self, rel, conteudo):
@@ -66,7 +66,7 @@ class TestRuntimeReal(Ambiente):
 
     def test_agente_de_produto_so_le_o_que_o_papel_pode_e_nada_vaza(self):
         r = self.sessao("p3", [self.R("produtos/P3/ok.md"), self.R("produtos/P4/outro.md"), self.R("dados/restritos/r.txt"),
-                               self.R("dados/entrada/e.txt"), self.R("logs/guarda-p3.jsonl"), self.R("produtos/DR/saida.txt"),
+                               self.R("dados/entrada/e.txt"), self.R("logs/guarda-p3.jsonl"), self.R("produtos/DR/saida/saida.txt"),
                                ("Grep", {"pattern": "SEGREDO", "path": str(self.raiz / "dados/restritos")}),
                                ("Glob", {"pattern": "*", "path": str(self.raiz / "dados/restritos")}),
                                ("WebFetch", {"url": f"http://127.0.0.1:{self.modelo.porta}/", "prompt": "x"}),
@@ -142,18 +142,18 @@ class TestRuntimeReal(Ambiente):
 
     def test_papeis_com_direito_conseguem_o_que_a_matriz_permite(self):
         self.sessao("controlador-dr", [self.R("dados/restritos/r.txt"), self.R("dados/entrada/e.txt"), self.R("logs/guarda-p3.jsonl"),
-                                       self.R("produtos/DR/saida.txt")])
+                                       self.R("produtos/DR/saida/saida.txt")])
         res = self.modelo.resultados
         self.assertIn(MARCADOR_RESTRITO, res[0]["texto"])
         self.assertIn(MARCADOR_ENTRADA, res[1]["texto"])
         self.assertTrue(res[2]["erro"])                                      # o DR não lê logs
         self.assertIn(MARCADOR_DR, res[3]["texto"])
-        self.sessao("revisor", [self.R("dados/restritos/r.txt"), self.R("logs/guarda-p3.jsonl"), self.R("produtos/DR/saida.txt")])
+        self.sessao("revisor", [self.R("dados/restritos/r.txt"), self.R("logs/guarda-p3.jsonl"), self.R("produtos/DR/saida/saida.txt")])
         res = self.modelo.resultados
         self.assertIn(MARCADOR_RESTRITO, res[0]["texto"])
         self.assertFalse(res[1]["erro"])                                     # o revisor lê os registros de auditoria
         self.assertIn(MARCADOR_DR, res[2]["texto"])
-        self.sessao("coordenador", [self.R("dados/restritos/r.txt"), self.R("logs/guarda-p3.jsonl"), self.R("produtos/DR/saida.txt"),
+        self.sessao("coordenador", [self.R("dados/restritos/r.txt"), self.R("logs/guarda-p3.jsonl"), self.R("produtos/DR/saida/saida.txt"),
                                     self.R("produtos/C/plano.md")])
         res = self.modelo.resultados
         self.assertTrue(res[0]["erro"])
@@ -166,7 +166,7 @@ class TestRuntimeReal(Ambiente):
     def direto(self, papel, agente, roteiro, com_jaula=True, config=None):
         """`claude` real SEM o lançador (com a configuração do projeto possivelmente QUEBRADA), com ou sem jaula+conta."""
         self.modelo.reiniciar(roteiro)
-        env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(self.homes / papel), "PPP_PAPEL": papel, "PPP_LOGD_OBRIGATORIO": "1",
+        env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(self.homes / papel), "PPP_PAPEL": papel,
                "PPP_LOGD_SOCKET": str(self.logd_socket), "TMPDIR": str(self.homes / papel / "tmp")}
         claude = [CLAUDE, "--setting-sources", "project", "--permission-mode", "acceptEdits", "--agent", agente, "-p", "teste",
                   "--output-format", "json"]

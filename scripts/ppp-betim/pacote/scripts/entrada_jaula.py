@@ -12,13 +12,13 @@ import ctypes
 import os
 import signal
 import socket
+import stat
 import sys
 import threading
 
 PR_SET_PDEATHSIG = 1
 MARCADOR = "gateway-local-sem-valor"
-REMOVER = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL",
-           "HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy", "ALL_PROXY", "all_proxy")
+PERMITIDAS = ("PATH", "HOME", "TMPDIR", "LANG", "TERM", "PYTHONDONTWRITEBYTECODE", "PPP_PAPEL", "PPP_LOGD_SOCKET", "PPP_LOG_LEGADO")
 
 
 def _copiar(origem, destino):
@@ -60,6 +60,14 @@ def servir(escuta, caminho):
         threading.Thread(target=_atender, args=(cliente, caminho), daemon=True).start()
 
 
+def rede_isolada():
+    """True se o namespace de rede só tem o loopback (sem isso a ponte exporia o 127.0.0.1 do HOST com a identidade do papel)."""
+    try:
+        return {nome for _, nome in socket.if_nameindex()} <= {"lo"}      # interfaces do namespace ATUAL (/sys/class/net mostraria as do host)
+    except OSError:
+        return False
+
+
 def preparar(caminho_gateway):
     """Abre o listener, bifurca o servidor e devolve (porta, env_extra). O pai segue e executa o comando."""
     escuta = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -88,10 +96,15 @@ def main(argv):
     comando = a.comando[1:] if a.comando[:1] == ["--"] else a.comando
     if not comando:
         raise SystemExit("informe o comando após --")
-    if not os.path.exists(a.gateway):
+    try:
+        if not stat.S_ISSOCK(os.stat(a.gateway).st_mode):
+            raise OSError("não é socket")
+    except OSError:
         raise SystemExit(f"gateway indisponível ({a.gateway}): sem rede, sem sessão")
+    if not rede_isolada() and os.environ.get("PPP_PONTE_SEM_ISOLAMENTO_DE_TESTE") != "1":
+        raise SystemExit("o namespace de rede não está isolado (há interface além de lo): a ponte exporia a rede do host; sessão recusada")
     porta = preparar(a.gateway)
-    env = {k: v for k, v in os.environ.items() if k not in REMOVER}
+    env = {k: v for k, v in os.environ.items() if k in PERMITIDAS}
     env["ANTHROPIC_BASE_URL"] = f"http://127.0.0.1:{porta}"
     env["ANTHROPIC_API_KEY"] = MARCADOR
     env["DISABLE_TELEMETRY"] = "1"

@@ -16,7 +16,8 @@
  "rede": {
   "upstream": "https://api.anthropic.com",
   "caminhos_permitidos": [
-   "/v1/"
+   "/v1/messages",
+   "/v1/messages/count_tokens"
   ]
  },
  "contas": {
@@ -54,7 +55,8 @@
    "conta": "ppp-dr",
    "grupos": [
     "ppp-leitura",
-    "ppp-restrito"
+    "ppp-restrito",
+    "ppp-dr-leitura"
    ],
    "agente_padrao": "controlador-dr"
   },
@@ -246,6 +248,21 @@
   },
   {
    "caminho": "produtos/DR",
+   "dono": "ppp-admin",
+   "grupo": "ppp-dr-leitura",
+   "modo_dir": "0750",
+   "modo_arq": "0640",
+   "leitura": [
+    "coordenador",
+    "controlador-dr",
+    "revisor"
+   ],
+   "escrita": [],
+   "sigilosa": true,
+   "nota": "casca do administrador: o dono da subpasta gravável não consegue expor a saída a quem não atravessa esta pasta"
+  },
+  {
+   "caminho": "produtos/DR/saida",
    "dono": "ppp-dr",
    "grupo": "ppp-dr-leitura",
    "modo_dir": "2750",
@@ -258,8 +275,7 @@
    "escrita": [
     "controlador-dr"
    ],
-   "sigilosa": true,
-   "nota": "saída do controlador DR (derivada de dados restritos): fora do alcance dos agentes P1-P7"
+   "nota": "saída do controlador DR (derivada de dados restritos); a conta do DR é dona só desta subpasta"
   },
   {
    "caminho": "produtos/P1",

@@ -28,8 +28,8 @@ def chama_hook(ambiente, papel, evento, obrigatorio=True, com_servico=True):
     env = {"PATH": "/usr/bin:/bin", "PPP_PAPEL": papel}
     if com_servico:
         env["PPP_LOGD_SOCKET"] = str(ambiente.logd_socket)
-    if obrigatorio:
-        env["PPP_LOGD_OBRIGATORIO"] = "1"
+    if not obrigatorio:
+        env["PPP_LOG_LEGADO"] = "1"          # o padrão é fechado; o modo legado precisa ser pedido
     return rodar_como(papel, ambiente.spec, "import subprocess,sys\nr=subprocess.run([sys.executable,'-B',sys.argv[1]],input=sys.stdin.read(),"
                       "text=True,capture_output=True)\nsys.stdout.write(r.stdout);sys.stderr.write(r.stderr);sys.exit(r.returncode)",
                       env=env, entrada=json.dumps(evento), args=(str(ambiente.raiz / ".claude/hooks" / HOOK),))
@@ -144,6 +144,66 @@ class TestLogEncadeado(Ambiente):
         self.assertEqual(r.stdout.strip(), "False")                                  # acima do limite: nada é gravado
         self.assertEqual(antes, {n: self.le_log(n) for n in I.nomes_de_log(self.spec)})
 
+    def test_separadores_unicode_no_conteudo_nao_quebram_a_cadeia_nem_o_reinicio(self):
+        separadores = "a\u2028b\u2029c\u0085d\x0be\x0cf\x1cg"
+        cliente = ("import sys; sys.path.insert(0, %r)\nimport logd\nprint(logd.enviar(%r, {'alvo': %r, 'motivo': 'x'}))\n"
+                   % (str(self.svc / "scripts"), str(self.logd_socket), separadores))
+        r = rodar_como("p3", self.spec, cliente)
+        self.assertEqual(r.stdout.strip(), "True")
+        self.assertEqual(self.verifica("guarda-p3.jsonl"), [])
+        self.derruba("logd")
+        self.sobe_logd()                                                     # antes: serviço se recusava a iniciar
+        chama_hook(self, "p3", leitura(self, "produtos/P3/x.md"))
+        self.assertEqual(self.verifica("guarda-p3.jsonl"), [])
+        self.assertEqual(len(self.le_log("guarda-p3.jsonl").split("\n")) - 1, 2)
+
+    def test_taxa_por_origem_e_truncamento_com_hash(self):
+        cliente = ("import sys; sys.path.insert(0, %r)\nimport logd\nok = sum(logd.enviar(%r, {'i': i}) for i in range(400))\nprint(ok)\n"
+                   % (str(self.svc / "scripts"), str(self.logd_socket)))
+        r = rodar_como("p3", self.spec, cliente)
+        aceitos = int(r.stdout.strip())
+        self.assertLess(aceitos, 400, "um papel não pode inundar a trilha sem limite")
+        self.assertGreater(aceitos, 0)
+        self.assertEqual(chama_hook(self, "revisor", leitura(self, "produtos/P3/x.md")).returncode, 0)        # os outros não são afetados
+        longo = "x" * 5000
+        cliente = ("import sys; sys.path.insert(0, %r)\nimport logd\nprint(logd.enviar(%r, {'comando': %r}))\n"
+                   % (str(self.svc / "scripts"), str(self.logd_socket), longo))
+        rodar_como("coordenador", self.spec, cliente)
+        gravado = self.le_log("guarda-coordenador.jsonl")
+        self.assertIn("truncado: 5000 caracteres, sha256=", gravado)
+        import hashlib
+        self.assertIn(hashlib.sha256(longo.encode()).hexdigest(), gravado)
+
+    def test_cabeca_da_cadeia_permite_ancora_externa_contra_truncamento(self):
+        for i in range(3):
+            chama_hook(self, "p2", leitura(self, f"produtos/P2/{i}.md"))
+        seq, h = logd.cabeca(self.raiz / "logs/guarda-p2.jsonl")
+        self.assertEqual(seq, 3)
+        arq = self.raiz / "logs/guarda-p2.jsonl"
+        I._chattr("-a", arq)
+        linhas = arq.read_text().split("\n")
+        arq.write_text("\n".join(linhas[:2]) + "\n")                          # truncamento do fim: a cadeia restante continua íntegra...
+        I._chattr("+a", arq)
+        self.assertEqual(logd.verificar(arq), [])
+        self.assertNotEqual(logd.cabeca(arq), (seq, h))                        # ...mas a cabeça publicada fora do serviço denuncia
+
+    def test_servidor_impostor_no_socket_nao_vale_como_confirmacao(self):
+        self.derruba("logd")
+        impostor = ("import socket,os\ns=socket.socket(socket.AF_UNIX); s.bind(%r); s.listen(5)\n"
+                    "for _ in range(5):\n c,_=s.accept(); c.recv(65536); c.sendall(b'ok\\n'); c.close()\n" % str(self.logd_socket))
+        p = subprocess.Popen([sys.executable, "-c", impostor])
+        try:
+            for _ in range(50):
+                if self.logd_socket.exists():
+                    break
+                time.sleep(0.1)
+            os.chmod(self.logd_socket, 0o666)
+            r = chama_hook(self, "p3", leitura(self, "produtos/P3/x.md"))
+            self.assertEqual(r.returncode, 2, "um processo que não é a conta do serviço de log não pode confirmar a trilha")
+        finally:
+            p.kill()
+            p.wait()
+
     def test_papeis_nao_escrevem_no_log_nem_com_o_servico_parado(self):
         self.derruba("logd")
         for papel in self.spec["papeis"]:
@@ -180,7 +240,7 @@ class TestGateway(Ambiente):
         status, _ = self.requisicao_como("p3", corpo=b"corpo-em-pedacos-de-cinco", chunked=True)
         self.assertEqual(status, 200)
         self.assertEqual(self.destino.recebidos[-1]["corpo"], b"corpo-em-pedacos-de-cinco")
-        status, corpo = self.requisicao_como("p3", metodo="GET", caminho="/v1/stream", corpo=b"")
+        status, corpo = self.requisicao_como("p3", corpo=b'{"stream": true}')
         self.assertEqual(status, 200)
         self.assertEqual(corpo.count("data: bloco-"), 3)
 
@@ -191,7 +251,51 @@ class TestGateway(Ambiente):
             self.assertIn(status, (403, 400, 404), (metodo, caminho))
         self.assertEqual(self.destino.recebidos, [], "nenhuma dessas requisições pode chegar ao destino")
         log = self.le_log("rede.jsonl")
-        self.assertIn("destino ou método fora da lista", log)
+        self.assertIn("fora da lista", log)
+
+    def bruto(self, papel, requisicao):
+        codigo = ("import socket,sys\ns=socket.socket(socket.AF_UNIX); s.settimeout(20); s.connect(sys.argv[1])\n"
+                  "s.sendall(bytes.fromhex(sys.stdin.read()))\ns.shutdown(socket.SHUT_WR)\nr=b''\n"
+                  "while True:\n b=s.recv(65536)\n if not b: break\n r+=b\nprint(r.split(b' ')[1].decode() if r else 'sem-resposta')\n")
+        r = rodar_como(papel, self.spec, codigo, entrada=requisicao.hex(), args=(str(self.gw_socket),))
+        return r.stdout.strip()
+
+    def test_requisicoes_malformadas_sao_rejeitadas_antes_de_chegar_ao_destino(self):
+        base = b"POST /v1/messages HTTP/1.0\r\nHost: x\r\n"
+        casos = {
+            "chunk negativo": base + b"Transfer-Encoding: chunked\r\n\r\n-5\r\nabcde\r\n0\r\n\r\n",
+            "chunk com 0x": base + b"Transfer-Encoding: chunked\r\n\r\n0x5\r\nabcde\r\n0\r\n\r\n",
+            "content-length duplicado": base + b"Content-Length: 2\r\nContent-Length: 2\r\n\r\nab",
+            "content-length com sinal": base + b"Content-Length: +2\r\n\r\nab",
+            "content-length e chunked": base + b"Content-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nab\r\n0\r\n\r\n",
+            "corpo mais curto que o declarado": base + b"Content-Length: 50\r\n\r\nab",
+        }
+        for nome, req in casos.items():
+            self.assertEqual(self.bruto("p3", req), "400", nome)
+        for caminho in ("/v1/%2e%2e/etc", "/v1/messages;x", "/v1/messages%2f..", "/v1/messages/../x", "/v1/messages/", "/v1/other"):
+            req = f"POST {caminho} HTTP/1.0\r\nHost: x\r\nContent-Length: 0\r\n\r\n".encode()
+            self.assertEqual(self.bruto("p3", req), "403", caminho)
+        self.assertEqual(self.destino.recebidos, [])
+
+    def test_somente_cabecalhos_necessarios_sao_encaminhados(self):
+        self.requisicao_como("p3", cabecalhos={"Cookie": "sessao=1", "X-Forwarded-For": "1.2.3.4", "Authorization": "Bearer x",
+                                              "X-Api-Key": CHAVE_DO_AGENTE, "anthropic-version": "2023-06-01", "X-Stainless-Lang": "js",
+                                              "Content-Type": "application/json", "Proxy-Authorization": "z"})
+        rec = self.destino.recebidos[-1]["cabecalhos"]
+        for ausente in ("cookie", "x-forwarded-for", "authorization", "proxy-authorization"):
+            self.assertNotIn(ausente, rec)
+        self.assertEqual(rec["x-api-key"], CHAVE_REAL)
+        self.assertEqual(rec["anthropic-version"], "2023-06-01")
+        self.assertEqual(rec["x-stainless-lang"], "js")
+
+    def test_destino_precisa_ser_https_e_o_host_da_especificacao(self):
+        spec = self.spec
+        with self.assertRaises(SystemExit):
+            GW.validar_upstream("http://api.anthropic.com", spec)
+        with self.assertRaises(SystemExit):
+            GW.validar_upstream("https://evil.example", spec)
+        self.assertEqual(GW.validar_upstream("https://api.anthropic.com", spec).hostname, "api.anthropic.com")
+        self.assertEqual(GW.validar_upstream("http://127.0.0.1:9", spec, permitir_http=True).port, 9)
 
     def test_chamador_sem_papel_e_negado(self):
         status, _ = self.requisicao_como(None, uid_avulso=65000)
@@ -257,7 +361,7 @@ class TestGateway(Ambiente):
         uid = self.spec["contas"]["ppp-rede"]
         p = subprocess.Popen([*prefixo_de(uid, uid, [uid, self.spec["grupos"]["ppp-leitura"]]), sys.executable, "-I", "-B",
                               str(self.svc / "scripts/gateway.py"), "--raiz", str(self.raiz), "--spec", str(self.svc / "governanca/papeis.json"),
-                              "--socket", str(self.gw_socket), "--logd-socket", str(self.logd_socket), "--upstream", f"http://127.0.0.1:{porta}",
+                              "--socket", str(self.gw_socket), "--logd-socket", str(self.logd_socket), "--permitir-http-de-teste", "--upstream", f"http://127.0.0.1:{porta}",
                               "--chave-arquivo", str(self.chave_arquivo)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.procs["gateway"] = p
         self.assertIn("pronto", p.stdout.readline())
@@ -305,7 +409,7 @@ class TestGateway(Ambiente):
             "python3 -c \"import os,urllib.request\n"
             "req=urllib.request.Request(os.environ['ANTHROPIC_BASE_URL']+'/v1/messages',data=b'{}',headers={'x-api-key':os.environ['ANTHROPIC_API_KEY']})\n"
             "print('STATUS',urllib.request.urlopen(req,timeout=10).status)\"\n"
-            "echo LOGD=$PPP_LOGD_SOCKET OBRIG=$PPP_LOGD_OBRIGATORIO\n", encoding="utf-8")
+            "echo LOGD=$PPP_LOGD_SOCKET\n", encoding="utf-8")
         os.chmod(stub, 0o755)
         env = dict(os.environ, ANTHROPIC_API_KEY=CHAVE_REAL)
         r = subprocess.run([sys.executable, "-B", str(self.raiz / "scripts/iniciar_sessao.py"), "--papel", "p3", "--claude", str(stub),
@@ -314,33 +418,55 @@ class TestGateway(Ambiente):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("AMB=0 CMD=0", r.stdout)
         self.assertIn("STATUS 200", r.stdout)
-        self.assertIn("OBRIG=1", r.stdout)
         self.assertNotIn(CHAVE_REAL, r.stdout + r.stderr)
         self.assertEqual(self.destino.recebidos[-1]["cabecalhos"]["x-api-key"], CHAVE_REAL)
 
 
 class TestPontaDaJaula(unittest.TestCase):
-    """Sem root: o cliente que liga a sessão ao gateway só repassa bytes e entrega marcadores, nunca uma chave."""
+    """Sem root: a ponte só entrega marcadores (nunca uma chave) e recusa rodar fora de um namespace de rede isolado."""
+
+    def setUp(self):
+        import tempfile
+        self.dir = Path(tempfile.mkdtemp(prefix="ponte-"))
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        self.sock = self.dir / "gw.sock"
+        self.escuta = socket.socket(socket.AF_UNIX)
+        self.escuta.bind(str(self.sock))
+        self.addCleanup(self.escuta.close)
+
+    def roda(self, comando, env_extra=None, gateway=None):
+        env = {k: v for k, v in os.environ.items()}
+        env.update(env_extra or {})
+        return subprocess.run([sys.executable, "-I", "-B", str(ROOT / "scripts/entrada_jaula.py"), "--gateway", str(gateway or self.sock), "--",
+                               *comando], capture_output=True, text=True, timeout=30, env=env)
 
     def test_variaveis_de_credencial_do_operador_sao_removidas_e_substituidas(self):
-        env = {k: v for k, v in os.environ.items()}
-        env.update({"ANTHROPIC_API_KEY": "chave-do-operador", "ANTHROPIC_AUTH_TOKEN": "t", "HTTPS_PROXY": "http://u:s@p"})
-        r = subprocess.run([sys.executable, "-I", "-B", str(ROOT / "scripts/entrada_jaula.py"), "--gateway", __file__, "--", sys.executable, "-c",
-                            "import os,json;print(json.dumps({k:v for k,v in os.environ.items() if 'ANTHROPIC' in k or 'PROXY' in k.upper()}))"],
-                           capture_output=True, text=True, timeout=30, env=env)
+        r = self.roda([sys.executable, "-c", "import os,json;print(json.dumps(dict(os.environ)))"],
+                      {"ANTHROPIC_API_KEY": "chave-do-operador", "ANTHROPIC_AUTH_TOKEN": "t", "HTTPS_PROXY": "http://u:s@p",
+                       "GH_TOKEN": "gh", "AWS_SECRET_ACCESS_KEY": "aws", "ANTHROPIC_CUSTOM_HEADERS": "x: y",
+                       "PPP_PONTE_SEM_ISOLAMENTO_DE_TESTE": "1"})
         self.assertEqual(r.returncode, 0, r.stderr)
         vistas = json.loads(r.stdout)
-        self.assertNotIn("chave-do-operador", r.stdout)
-        self.assertEqual(vistas["ANTHROPIC_API_KEY"], entrada_jaula.MARCADOR)
-        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", vistas)
-        self.assertNotIn("HTTPS_PROXY", vistas)
+        for segredo in ("chave-do-operador", "u:s", "gh", "aws"):
+            self.assertNotIn(segredo, r.stdout)
+        self.assertEqual(vistas["ANTHROPIC_API_KEY"], entrada_jaula.MARCADOR)         # lista de PERMISSÃO: nada além do necessário
+        for ausente in ("ANTHROPIC_AUTH_TOKEN", "HTTPS_PROXY", "GH_TOKEN", "AWS_SECRET_ACCESS_KEY", "ANTHROPIC_CUSTOM_HEADERS"):
+            self.assertNotIn(ausente, vistas)
         self.assertTrue(vistas["ANTHROPIC_BASE_URL"].startswith("http://127.0.0.1:"))
 
-    def test_sem_gateway_a_sessao_nao_inicia(self):
-        r = subprocess.run([sys.executable, "-I", "-B", str(ROOT / "scripts/entrada_jaula.py"), "--gateway", "/nao/existe.sock", "--", "true"],
-                           capture_output=True, text=True, timeout=30)
+    def test_sem_gateway_ou_com_arquivo_que_nao_e_socket_a_sessao_nao_inicia(self):
+        for alvo in ("/nao/existe.sock", __file__):
+            r = self.roda(["true"], {"PPP_PONTE_SEM_ISOLAMENTO_DE_TESTE": "1"}, gateway=alvo)
+            self.assertNotEqual(r.returncode, 0, alvo)
+            self.assertIn("gateway indisponível", r.stderr)
+
+    def test_recusa_rodar_fora_de_um_namespace_de_rede_isolado(self):
+        interfaces = set(os.listdir("/sys/class/net")) if os.path.isdir("/sys/class/net") else {"lo"}
+        if interfaces <= {"lo"}:
+            self.skipTest("este ambiente já tem namespace de rede vazio")
+        r = self.roda(["true"])
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("gateway indisponível", r.stderr)
+        self.assertIn("não está isolado", r.stderr)
 
 
 if __name__ == "__main__":

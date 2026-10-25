@@ -72,6 +72,11 @@ class TestEspecificacao(unittest.TestCase):
             "agente lê a área do DR": lambda s: area(s, "produtos/DR")["leitura"].append("p1"),
             "escrita declarada além do previsto": lambda s: area(s, "registros")["escrita"].append("revisor"),
             "escrita que não é do dono": lambda s: area(s, "produtos/C")["escrita"].append("controlador-dr"),
+            "dono de papel sem escrita": lambda s: area(s, "produtos/C").update(escrita=[]),
+            "área sigilosa com dono de papel": lambda s: area(s, "produtos/DR").update(dono="ppp-dr", escrita=["controlador-dr"]),
+            "modo malformado": lambda s: area(s, "produtos/C").update(modo_dir="rwx"),
+            "serviço ausente": lambda s: s["servicos"].pop("logd_socket"),
+            "rede sem caminhos": lambda s: s["rede"].update(caminhos_permitidos=[]),
             "grupo inexistente": lambda s: s["papeis"]["p1"]["grupos"].append("ppp-inexistente"),
             "papel inexistente na área": lambda s: area(s, "produtos/C")["leitura"].append("fantasma"),
             "chave desconhecida": lambda s: area(s, "produtos/C").update(sigiloso=True),
@@ -102,17 +107,19 @@ class TestEspecificacao(unittest.TestCase):
         self.assertFalse(p("p1", "logs", "listar"))
         self.assertTrue(p("coordenador", "produtos/C", "criar"))
         self.assertFalse(p("controlador-dr", "produtos/C", "criar"))          # o DR só escreve na sua própria pasta
-        self.assertTrue(p("controlador-dr", "produtos/DR", "criar"))
-        self.assertFalse(p("coordenador", "produtos/DR", "criar"))
-        self.assertTrue(p("coordenador", "produtos/DR", "ler"))
-        self.assertTrue(p("revisor", "produtos/DR", "ler"))
+        self.assertTrue(p("controlador-dr", "produtos/DR/saida", "criar"))
+        self.assertFalse(p("controlador-dr", "produtos/DR", "criar"))          # a pasta-casca é do administrador
+        self.assertFalse(p("coordenador", "produtos/DR/saida", "criar"))
+        self.assertTrue(p("coordenador", "produtos/DR/saida", "ler"))
+        self.assertTrue(p("revisor", "produtos/DR/saida", "ler"))
         for i in range(1, 8):
             self.assertFalse(p(f"p{i}", "produtos/DR", "ler"), f"p{i} lê a saída do DR")
+            self.assertFalse(p(f"p{i}", "produtos/DR/saida", "ler"), f"p{i} lê a saída do DR")
             for j in range(1, 8):
                 self.assertEqual(p(f"p{i}", f"produtos/P{j}", "criar"), i == j, f"p{i}->P{j}")
                 self.assertTrue(p(f"p{i}", f"produtos/P{j}", "ler"))
             self.assertFalse(p(f"p{i}", "produtos/C", "criar"))
-        for rel in ("produtos/C", "produtos/DR", "produtos/P1", "produtos"):
+        for rel in ("produtos/C", "produtos/DR", "produtos/DR/saida", "produtos/P1", "produtos"):
             self.assertFalse(p("revisor", rel, "criar"))               # o revisor não grava em lugar nenhum
 
     def test_resolucao_de_area(self):
@@ -138,9 +145,12 @@ class TestLancadorPorPapel(unittest.TestCase):
 
     def test_opcoes_que_reabririam_configuracao_ou_permissao_sao_recusadas(self):
         for opcao in ("--settings", "--setting-sources", "--dangerously-skip-permissions", "--permission-mode=bypassPermissions",
-                      "--mcp-config"):
+                      "--mcp-config", "--agents", "--allowedTools", "--tools", "--system-prompt", "--append-system-prompt", "--debug-file",
+                      "--worktree", "--add-dir", "--plugin-dir", "--dangerously-skip-permissions", "--disallowedTools"):
             with self.assertRaisesRegex(SystemExit, "opção recusada"):
                 L.plano_do_papel(self.spec, "coordenador", [opcao, "x"], "/bin/true", dry_run=True)
+        for permitida in ("-p", "--output-format", "--agent=p3-mercado", "--model", "--verbose"):
+            self.assertIn(permitida.split("=")[0], L.OPCOES_PERMITIDAS)
 
     def test_papel_sem_valor_ou_root_sem_papel_e_recusado(self):
         with self.assertRaises(SystemExit):
@@ -161,6 +171,7 @@ class TestLancadorPorPapel(unittest.TestCase):
             J.argumentos_jaula(self.spec, "p3", "/srv/x/p", "/srv/x/h", rede="qualquer")
         juntos = " ".join(a)
         self.assertIn("--tmpfs /srv/x/p/produtos/DR --remount-ro /srv/x/p/produtos/DR", juntos)      # p3 não lê a saída do DR
+        self.assertIn("--disable-userns", juntos)
         self.assertIn("--bind /srv/x/p/produtos/P3 /srv/x/p/produtos/P3", juntos)
         self.assertNotIn("--bind /srv/x/p/produtos/P4 ", juntos)
         self.assertNotIn("guarda-p3.jsonl", juntos)                       # o papel não tem ponto de escrita no próprio log
@@ -176,7 +187,7 @@ class TestLancadorPorPapel(unittest.TestCase):
         env = L.ambiente_do_papel("revisor", "/h/revisor", origem, rede="gateway", logd_socket="/run/x/logd.sock")
         self.assertEqual(env["PATH"], L.PATH_FIXO)
         self.assertEqual(env["HOME"], "/h/revisor")
-        self.assertEqual(env["PPP_LOGD_OBRIGATORIO"], "1")
+        self.assertNotIn("PPP_LOGD_OBRIGATORIO", env)
         self.assertEqual(env["PPP_LOGD_SOCKET"], "/run/x/logd.sock")
         self.assertEqual(env["LANG"], "pt_BR.UTF-8")
         for proibida in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "HTTPS_PROXY", "AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN",
@@ -242,6 +253,8 @@ class TestKernel(unittest.TestCase):
         (self.raiz / "dados/entrada/doc.txt").write_text("ENTRADA-SINTETICA\n", encoding="utf-8")
         self.spec = spec_base()
         self.homes = self.base / "homes"
+        self.homes.mkdir()                        # o administrador cria o home_base antes (root, sem escrita para grupo/outros)
+        os.chmod(self.homes, 0o755)
         self.avisos = I.aplicar(self.raiz, self.spec, self.homes)
 
     def limpa(self):
@@ -276,7 +289,7 @@ class TestKernel(unittest.TestCase):
     def test_operacoes_legitimas_continuam_possiveis(self):
         _, reg = I.sondar(self.raiz, self.spec)
         self.assertTrue(reg["coordenador"]["areas"]["produtos/C|criar"])
-        self.assertTrue(reg["controlador-dr"]["areas"]["produtos/DR|criar"])
+        self.assertTrue(reg["controlador-dr"]["areas"]["produtos/DR/saida|criar"])
         self.assertTrue(reg["controlador-dr"]["areas"]["dados/restritos|ler"])
         self.assertTrue(reg["revisor"]["areas"]["dados/entrada|ler"])
         self.assertTrue(reg["revisor"]["areas"]["produtos/DR|ler"])
@@ -290,7 +303,7 @@ class TestKernel(unittest.TestCase):
         _, reg = I.sondar(self.raiz, self.spec)
         escritas = {p: sorted(k.split("|")[0] for k, v in r["areas"].items() if k.endswith("|criar") and v) for p, r in reg.items()}
         self.assertEqual(escritas["coordenador"], ["produtos/C"])
-        self.assertEqual(escritas["controlador-dr"], ["produtos/DR"])
+        self.assertEqual(escritas["controlador-dr"], ["produtos/DR/saida"])
         self.assertEqual(escritas["revisor"], [])
         for i in range(1, 8):
             self.assertEqual(escritas[f"p{i}"], [f"produtos/P{i}"])
@@ -460,6 +473,49 @@ class TestKernel(unittest.TestCase):
         self.assertNotEqual(uid, os.stat(vitima).st_uid)
         self.assertTrue(any("home do papel p2" in d for d in I.auditar(self.raiz, self.spec, self.homes)))
 
+    def test_dono_da_saida_do_dr_nao_consegue_expor_a_saida_aos_agentes(self):
+        """O dono de uma pasta sempre pode mudar modo e grupo; por isso a saída do DR fica sob uma pasta-casca do administrador."""
+        (self.raiz / "produtos/DR/saida/relatorio.txt").write_text("SAIDA-DR\n", encoding="utf-8")
+        dr = self.spec["contas"]["ppp-dr"]
+        os.chown(self.raiz / "produtos/DR/saida/relatorio.txt", dr, self.spec["grupos"]["ppp-dr-leitura"])
+        os.chmod(self.raiz / "produtos/DR/saida/relatorio.txt", 0o640)
+        r = _rodar_como("controlador-dr", self.spec,
+                        f"import os\nd='{self.raiz}/produtos/DR/saida'\nos.chmod(d, 0o777)\nos.chmod(d+'/relatorio.txt', 0o666)\n"
+                        f"os.chown(d, -1, {self.spec['grupos']['ppp-leitura']})\nos.chown(d+'/relatorio.txt', -1, {self.spec['grupos']['ppp-leitura']})\n"
+                        "print('ADULTEROU')\n")
+        self.assertIn("ADULTEROU", r.stdout, r.stderr)             # o dono consegue (é a limitação do DAC)...
+        for i in range(1, 8):                                       # ...mas nenhum agente de produto chega lá
+            r = _rodar_como(f"p{i}", self.spec, f"print(open('{self.raiz}/produtos/DR/saida/relatorio.txt').read())")
+            self.assertNotIn("SAIDA-DR", r.stdout, f"p{i}")
+            self.assertNotEqual(r.returncode, 0, f"p{i}")
+        self.assertTrue(any("saida" in d for d in I.auditar(self.raiz, self.spec, self.homes)))        # e a auditoria denuncia o excesso
+
+    def test_fifo_no_lugar_da_sentinela_nao_trava_aplicar(self):
+        os.unlink(self.raiz / "produtos/P5/.sentinela")
+        os.mkfifo(self.raiz / "produtos/P5/.sentinela")
+        with self.assertRaises(OSError):
+            I.aplicar(self.raiz, self.spec, self.homes)            # recusa com erro claro, sem ficar bloqueado
+        os.unlink(self.raiz / "produtos/P5/.sentinela")
+        I.aplicar(self.raiz, self.spec, self.homes)
+
+    def test_sondagem_distingue_negacao_do_kernel_de_falha_inconclusiva(self):
+        os.unlink(self.raiz / "produtos/P6/.sentinela")           # sem a sentinela, "ler" falha por ENOENT, não por permissão
+        divs, _ = I.sondar(self.raiz, self.spec)
+        self.assertTrue(any("INCONCLUSIVO" in d and "produtos/P6" in d for d in divs), divs[:3])
+
+    def test_ancestral_gravavel_por_papel_bloqueia_aplicar_e_a_auditoria(self):
+        pai = self.base / "pai"
+        pai.mkdir()
+        os.chmod(pai, 0o777)
+        movido = pai / "proj"
+        shutil.move(str(self.raiz), movido)
+        try:
+            self.assertTrue(any("gravável pelo papel" in d for d in I.auditar(movido, self.spec, self.homes)))
+            with self.assertRaises(SystemExit):
+                I.aplicar(movido, self.spec)
+        finally:
+            shutil.move(str(movido), str(self.raiz))
+
     def test_diretorio_ilegivel_nao_vira_conforme_em_silencio(self):
         """Quem audita sem poder ler uma pasta (ex.: NFS com root_squash) recebe erro, não 'conforme'."""
         codigo = (f"import sys; sys.path.insert(0, '{self.raiz / 'scripts'}')\n"
@@ -473,10 +529,13 @@ class TestKernel(unittest.TestCase):
         logd = self.base / "logd.sock"
         gw = self.base / "gw.sock"
         logd.touch()
-        gw.touch()
+        if not gw.exists():                                              # a ponte exige um SOCKET de verdade, não um arquivo
+            self._gw = socket.socket(socket.AF_UNIX)
+            self._gw.bind(str(gw))
+            self.addCleanup(self._gw.close)
         return subprocess.run([sys.executable, "-B", str(self.raiz / "scripts/iniciar_sessao.py"), "--papel", papel,
                                "--claude", str(stub), "--home-base", str(self.homes), "--logd-socket", str(logd),
-                               "--gateway-socket", str(gw), *extra], capture_output=True, text=True, timeout=60, env=env or os.environ)
+                               "--gateway-socket", str(gw), "--permitir-servicos-de-teste", *extra], capture_output=True, text=True, timeout=60, env=env or os.environ)
 
     def stub(self, corpo):
         s = self.base / "claude-stub"
@@ -490,7 +549,7 @@ class TestKernel(unittest.TestCase):
         stub = self.stub(
             "echo UID=$(id -u) GID=$(id -g) GRUPOS=$(id -G)\n"
             "grep -E 'NoNewPrivs|CapEff|CapBnd' /proc/self/status\n"
-            "echo HOME=$HOME PAPEL=$PPP_PAPEL CWD=$(pwd) UMASK=$(umask) LOGD=$PPP_LOGD_SOCKET OBRIG=$PPP_LOGD_OBRIGATORIO\n"
+            "echo HOME=$HOME PAPEL=$PPP_PAPEL CWD=$(pwd) UMASK=$(umask) LOGD=$PPP_LOGD_SOCKET\n"
             "echo SEGREDO_TESTE=${SEGREDO_TESTE:-ausente} CHAVE=${ANTHROPIC_API_KEY:-ausente} LD=${LD_PRELOAD:-ausente}\n"
             "echo ARGS=\"$@\"\n"
             "echo CMDLINE=$(tr '\\0' ' ' < /proc/self/cmdline)\n"
@@ -507,7 +566,6 @@ class TestKernel(unittest.TestCase):
         self.assertIn("NoNewPrivs:\t1", r.stdout)
         self.assertIn("CapEff:\t0000000000000000", r.stdout)
         self.assertIn("PAPEL=revisor", r.stdout)
-        self.assertIn("OBRIG=1", r.stdout)
         self.assertIn(f"CWD={os.path.realpath(self.raiz)}", r.stdout)
         self.assertIn("UMASK=0027", r.stdout)
         self.assertIn("SEGREDO_TESTE=ausente", r.stdout)
@@ -578,6 +636,23 @@ class TestKernel(unittest.TestCase):
             self.assertEqual(plano["rede"], rede)
             self.assertEqual("--unshare-net" in plano["comando"], rede == "gateway")
             self.assertEqual(any("entrada_jaula.py" in c for c in plano["comando"]), rede == "gateway")
+            for fixa in ("--strict-mcp-config", "--setting-sources", "project"):         # nada de MCP ou settings do HOME gravável
+                self.assertIn(fixa, plano["comando"])
+
+    def test_lancador_recusa_socket_de_servico_que_nao_e_da_conta_esperada(self):
+        marcador = self.base / "executou"
+        stub = self.stub(f"touch {marcador}\n")
+        logd, gw = self.base / "logd.sock", self.base / "gw.sock"
+        for s in (logd, gw):                                             # sockets de verdade, mas do root (não do guardião/rede)
+            sk = socket.socket(socket.AF_UNIX)
+            sk.bind(str(s))
+            self.addCleanup(sk.close)
+        r = subprocess.run([sys.executable, "-B", str(self.raiz / "scripts/iniciar_sessao.py"), "--papel", "p3", "--claude", str(stub),
+                            "--home-base", str(self.homes), "--logd-socket", str(logd), "--gateway-socket", str(gw)],
+                           capture_output=True, text=True, timeout=60)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("não é um socket da conta esperada", r.stderr)
+        self.assertFalse(marcador.exists())
 
     def test_lancador_recusa_com_isolamento_adulterado_e_nao_executa_nada(self):
         marcador = self.base / "executou"
@@ -649,13 +724,13 @@ class TestJaula(unittest.TestCase):
         "def conecta():\n"
         "    s=socket.socket(); s.settimeout(3); s.connect(('127.0.0.1',@PORTA@)); s.close()\n"
         "r={'registros':t(esc('registros/decisoes/x')),'governanca':t(esc('governanca/x')),'claude':t(esc('.claude/settings.json')),\n"
-        " 'C':t(esc('produtos/C/x')),'DR':t(esc('produtos/DR/x')),'P3':t(esc('produtos/P3/x')),'P4':t(esc('produtos/P4/x')),\n"
+        " 'C':t(esc('produtos/C/x')),'DR':t(esc('produtos/DR/saida/x')),'P3':t(esc('produtos/P3/x')),'P4':t(esc('produtos/P4/x')),\n"
         " 'restrito':t(ler('dados/restritos/doc.txt')),\n"
         " 'restrito_lista':os.listdir('dados/restritos'),'entrada':os.path.exists('dados/entrada/doc.txt'),\n"
         " 'dr_lista':t(lambda: os.listdir('produtos/DR')) and len(os.listdir('produtos/DR')),\n"
         " 'log':t(esc('logs/guarda-p3.jsonl')),'log_lista':t(lambda: os.listdir('logs')) and len(os.listdir('logs')),\n"
         " 'etc':t(esc('/etc/ppp-x')),'home':t(esc('@HOME@/ok')),'rede':t(conecta),\n"
-        " 'run':os.listdir('/run'),'root':os.listdir('/root'),'home_dir':os.listdir('/home'),\n"
+        " 'run':os.listdir('/run'),'root':os.listdir('/root'),'home_dir':os.listdir('/home'),'irmaos':os.listdir(os.path.dirname('@HOME@')),\n"
         " 'remonta':os.system('mount -o remount,rw /srv >/dev/null 2>&1')==0,'uid':os.getuid()}\n"
         "print(json.dumps(r))\n")
 
@@ -703,6 +778,20 @@ class TestJaula(unittest.TestCase):
         self.assertFalse(self.sonda("p3")["rede"], "a jaula deve ter namespace de rede vazio")
         self.assertTrue(self.sonda("p3", rede="aberta")["rede"], "controle positivo: sem isolamento de rede a conexão funciona")
 
+    def test_homes_de_outros_papeis_ficam_ocultos_e_nova_sessao_userns_e_negada(self):
+        if not os.path.isdir("/srv") or not os.access("/srv", os.W_OK):
+            self.skipTest("sem /srv gravável: o home precisa ficar fora das pastas que a jaula já oculta")
+        homes = Path(tempfile.mkdtemp(prefix="homes-", dir="/srv"))
+        self.addCleanup(shutil.rmtree, homes, ignore_errors=True)
+        (homes / "p3").mkdir()
+        (homes / "outro-papel").mkdir()
+        (homes / "outro-papel/segredo.txt").write_text("x", encoding="utf-8")
+        self.home = homes / "p3"
+        r = self.sonda("p3")
+        self.assertEqual(r["irmaos"], ["p3"], "só o home do próprio papel pode aparecer ao lado")
+        saida = self.executa("p3", "import os\nrc=os.system('unshare -Ur true >/dev/null 2>&1')\nprint('USERNS' if rc==0 else 'SEM-USERNS')")
+        self.assertIn("SEM-USERNS", saida.stdout)
+
     def test_pastas_do_host_ficam_ocultas(self):
         r = self.sonda("p3")
         self.assertEqual(r["run"], [])
@@ -723,6 +812,10 @@ class TestJaula(unittest.TestCase):
 
 
 class TestDocumentos(unittest.TestCase):
+    def test_matriz_do_documento_e_a_gerada_da_especificacao(self):
+        texto = (ROOT / "governanca/GOV-08-riscos-criticos.md").read_text(encoding="utf-8")
+        self.assertIn(I.matriz_markdown(spec_base()), texto, "a matriz do GOV-08 diverge de papeis.json")
+
     def test_documentos_nao_declaram_homologacao(self):
         for nome in ("GOV-07-isolamento-por-so.md", "GOV-08-riscos-criticos.md"):
             caminho = ROOT / "governanca" / nome

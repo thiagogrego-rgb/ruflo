@@ -232,7 +232,7 @@ def matriz_agentes():
     """Matriz agente -> skills e áreas de escrita (fonte única; gera o JSON e o texto dos agentes)."""
     matriz = {}
     for agente in AGENTS:
-        area = "DR" if agente == "controlador-dr" else produto_do_agente(agente)      # GOV-08: o DR escreve só em produtos/DR
+        area = "DR/saida" if agente == "controlador-dr" else produto_do_agente(agente)      # GOV-08: o DR escreve só em produtos/DR/saida
         matriz[agente] = {
             "skills": sorted(s for s, v in SKILLS.items() if agente in agentes_da_skill(v[0])),
             "escrita": [] if agente == "revisor-independente" else [f"produtos/{area}"],
