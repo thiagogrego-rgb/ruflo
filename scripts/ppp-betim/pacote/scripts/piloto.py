@@ -78,6 +78,8 @@ def _executa_cenario(fn, *args):
 
 def _relatorio_md(rodada):
     linhas = [f"# Piloto GOV-09 — rodada `{rodada['rotulo']}`", "",
+              "> **Escopo: LABORATÓRIO.** Modelo de API SIMULADO e credencial sintética. **Infraestrutura de homologação: NÃO realizada.** "
+              "Nenhum resultado abaixo autoriza dados reais nem declara homologação.", "",
               f"- Modo: **{rodada['modo']}**",
               f"- Início: {rodada['inicio']} — duração {rodada['duracao_s']} s",
               f"- Credencial: {rodada['credencial']}", "",
@@ -167,16 +169,25 @@ def executar(args):
 def comparar(args):
     a, b = (json.loads(Path(p).read_text(encoding="utf-8")) for p in (args.a, args.b))
     dif = []
+    if a["rotulo"] == b["rotulo"] or a["inicio"] == b["inicio"]:
+        dif.append({"cenario": "*", "diferenca": "as rodadas não são independentes (mesmo rótulo ou mesmo início)"})
+    if a["modo"] != b["modo"]:
+        dif.append({"cenario": "*", "diferenca": f"modos diferentes: {a['modo']} x {b['modo']}"})
     da, db = ({r["id"]: r for r in x["cenarios"]} for x in (a, b))
     for id_ in sorted(set(da) | set(db)):
         if id_ not in da or id_ not in db:
             dif.append({"cenario": id_, "diferenca": "presente em uma rodada só"})
         elif da[id_]["resultado"] != db[id_]["resultado"] or da[id_]["evidencia"] != db[id_]["evidencia"]:
             dif.append({"cenario": id_, "a": da[id_]["resultado"], "b": db[id_]["resultado"], "evidencia_igual": da[id_]["evidencia"] == db[id_]["evidencia"]})
-    r = {"id": "S10", "titulo": "Reprodutibilidade entre duas rodadas independentes", "rodadas": [a["rotulo"], b["rotulo"]], "cenarios_comparados": len(da),
-         "resultado": C.PASSOU if not dif else C.FALHOU, "diferencas": dif}
+    comuns = [i for i in da if i in db]
+    reproduzidos = [i for i in comuns if da[i]["resultado"] == db[i]["resultado"] == C.PASSOU]
+    nao_executados = [i for i in comuns if da[i]["resultado"] == db[i]["resultado"] == C.NAO_EXECUTADO]
+    r = {"id": "S10", "titulo": "Reprodutibilidade entre duas rodadas independentes", "rodadas": [a["rotulo"], b["rotulo"]], "cenarios_comparados": len(comuns),
+         "reproduzidos_com_PASSOU": len(reproduzidos), "nao_executados_nas_duas": nao_executados,
+         "ignorado_na_comparacao": "campo 'volatil' (pids, durações, contagens de registros, códigos da rajada) — a evidência comparada é a determinística",
+         "resultado": C.PASSOU if not dif and reproduzidos else C.FALHOU, "diferencas": dif}
     _imprime(r)
-    return 0 if not dif else 1
+    return 0 if r["resultado"] == C.PASSOU else 1
 
 
 def main(argv=None):

@@ -484,7 +484,7 @@ class TestComparacaoEResultados(unittest.TestCase):
         c = [{"id": "S02", "titulo": "t", "resultado": "PASSOU", "evidencia": {"a": True, "n": 3}, "volatil": {"duracao_s": 1.0}}]
         if extra:
             c.append(extra)
-        return {"rotulo": rotulo, "cenarios": c}
+        return {"rotulo": rotulo, "inicio": f"2026-10-25T00:00:0{rotulo[-1]}", "modo": "laboratorio-modelo-simulado", "cenarios": c}
 
     def comparar(self, a, b):
         pasta = Path(tempfile.mkdtemp())
@@ -499,6 +499,19 @@ class TestComparacaoEResultados(unittest.TestCase):
         b = self.rodada("r2")
         b["cenarios"][0]["volatil"]["duracao_s"] = 99
         self.assertEqual(self.comparar(self.rodada("r1"), b), 0)
+
+    def test_mesma_rodada_duas_vezes_nao_conta_como_reprodutibilidade(self):
+        a = self.rodada("r1")
+        self.assertEqual(self.comparar(a, a), 1)
+
+    def test_modos_diferentes_ou_nada_reproduzido_reprovam(self):
+        b = self.rodada("r2")
+        b["modo"] = "api-real"
+        self.assertEqual(self.comparar(self.rodada("r1"), b), 1)
+        so_nao_executado = {"id": "S04", "titulo": "t", "resultado": "NAO_EXECUTADO", "evidencia": {}, "volatil": {}}
+        x, y = self.rodada("r1"), self.rodada("r2")
+        x["cenarios"], y["cenarios"] = [so_nao_executado], [so_nao_executado]
+        self.assertEqual(self.comparar(x, y), 1)                                # NÃO EXECUTADO igual nas duas rodadas não é "reproduzido"
 
     def test_diferenca_de_evidencia_ou_de_resultado_reprova(self):
         b = self.rodada("r2")

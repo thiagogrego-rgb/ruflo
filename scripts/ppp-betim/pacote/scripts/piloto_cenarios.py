@@ -8,6 +8,7 @@ real ao provedor. Só o cenário S04 com `modo = "api-real"` e credencial provis
 import json
 import os
 import shlex
+import shutil
 import socket
 import ssl
 import subprocess
@@ -125,7 +126,10 @@ def s01_usuario_sem_privilegio(ctx):
           "namespace_de_rede_proprio": rede_sessao != rede_host, "chave_do_operador_no_ambiente": "chave-do-operador" in ambiente,
           "base_url_local": "ANTHROPIC_BASE_URL=http://127.0.0.1:" in ambiente, "nao_e_root": uid != 0}
     ok = all(v for k, v in ev.items() if k != "chave_do_operador_no_ambiente") and not ev["chave_do_operador_no_ambiente"]
-    return resultado("S01", "Claude Code como usuário sem privilégios", ok, ev, {"pid": int(alvo.name), "grupos": campos.get("Groups")})
+    binario = os.path.realpath(shutil.which("claude") or "")
+    versao = subprocess.run([binario, "--version"], capture_output=True, text=True, timeout=30).stdout.strip() if binario else ""
+    return resultado("S01", "Claude Code como usuário sem privilégios", ok, ev, {"pid": int(alvo.name), "grupos": campos.get("Groups"), "binario": binario,
+                                                                              "versao": versao, "papel_testado": "p3"})
 
 
 # ------------------------------------------------------------------------------------------------ S02
@@ -136,8 +140,9 @@ def s02_contas_e_permissoes(ctx):
     sem_login = all((i["shell"] or "").endswith(("nologin", "false")) for i in inv)
     contas_ok = all(i["id"].startswith(f"uid={i['uid_esperado']}(") for i in inv)
     operacoes = sum(len(r["areas"]) + len(r["ataques"]) + len(r["logs"]) for r in registro.values())
-    ev = {"auditoria_conforme": div == [], "sondagem_conforme": divs == [], "papeis_sondados": len(registro), "contas_conferem_com_o_sistema": contas_ok,
-          "contas_sem_shell_de_login": sem_login, "operacoes_sondadas_acima_de_800": operacoes > 800}
+    ev = {"auditoria_conforme": div == [], "sondagem_conforme": divs == [], "papeis_sondados_igual_ao_declarado": len(registro) == len(ctx.spec["papeis"]) == 10,
+          "contas_inventariadas_igual_as_declaradas": len(inv) == len(ctx.spec["contas"]) > 0, "contas_conferem_com_o_sistema": bool(inv) and contas_ok,
+          "contas_sem_shell_de_login": bool(inv) and sem_login, "operacoes_sondadas_acima_de_800": operacoes > 800}
     return resultado("S02", "Contas e permissões por papel (sistema real)", all(ev.values()), ev, {"operacoes": operacoes, "divergencias": (div + divs)[:5]})
 
 
@@ -146,22 +151,24 @@ def s03_inicializacao_segura(ctx):
     base = [sys.executable, "-B", ctx.launcher]
     casos = {}
 
-    def roda(nome, cmd, usuario=None, env=None):
-        if usuario is not None:
-            cmd = ["setpriv", f"--reuid={usuario}", f"--regid={usuario}", "--clear-groups", *cmd]
+    def roda(nome, cmd, esperado, usuario=None, env=None):
+        if usuario is not None:                                                  # com o grupo de leitura, para o launcher ser LIDO e executar a própria checagem
+            grupo = ctx.spec["grupos"]["ppp-leitura"]
+            cmd = ["setpriv", f"--reuid={usuario}", f"--regid={usuario}", f"--groups={grupo}", *cmd]
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL, env=env or {"PATH": os.environ["PATH"]})
-        casos[nome] = {"recusou": r.returncode != 0, "mensagem": (r.stderr.strip().splitlines() or [""])[-1][:120]}
-    roda("sem_root", base + ["--papel", "p3", "--dry-run"], usuario=ctx.uid("p3"))
-    roda("root_sem_papel", base + ["--dry-run"])
-    roda("opcao_fora_da_lista_branca", base + ["--papel", "p3", "--", "--dangerously-skip-permissions", "-p", "x"])
-    roda("opcao_agents", base + ["--papel", "p3", "--", "--agents", "{}", "-p", "x"])
-    roda("servico_de_log_inexistente", base + ["--papel", "p3", "--logd-socket", "/run/ppp-betim/log/nao-existe.sock", "--", "-p", "x"])
-    roda("papel_inexistente", base + ["--papel", "fantasma", "--", "-p", "x"])
+        msg = (r.stderr.strip().splitlines() or [""])[-1][:160]
+        casos[nome] = {"recusou": r.returncode != 0 and esperado.lower() in (r.stderr + r.stdout).lower(), "mensagem": msg}
+    roda("sem_root", base + ["--papel", "p3", "--dry-run"], "execute como root", usuario=ctx.uid("p3"))
+    roda("root_sem_papel", base + ["--dry-run"], "exige --papel")
+    roda("opcao_fora_da_lista_branca", base + ["--papel", "p3", "--", "--dangerously-skip-permissions", "-p", "x"], "opção recusada")
+    roda("opcao_agents", base + ["--papel", "p3", "--", "--agents", "{}", "-p", "x"], "opção recusada")
+    roda("servico_de_log_inexistente", base + ["--papel", "p3", "--logd-socket", "/run/ppp-betim/log/nao-existe.sock", "--", "-p", "x"], "indisponível")
+    roda("papel_inexistente", base + ["--papel", "fantasma", "--", "-p", "x"], "papel desconhecido")
     settings = AMB.PROJETO / ".claude/settings.json"
     original = settings.read_bytes()
     try:
         settings.write_text('{"permissions": {', encoding="utf-8")
-        roda("configuracao_adulterada", base + ["--papel", "p3", "--", "-p", "x"])
+        roda("configuracao_adulterada", base + ["--papel", "p3", "--", "-p", "x"], "Sessão NÃO iniciada")
     finally:
         settings.write_bytes(original)
     positivo = subprocess.run(base + ["--papel", "p3", "--dry-run"], capture_output=True, text=True, timeout=60)
@@ -220,13 +227,20 @@ def s05_protecao_da_credencial(ctx, chave_bytes):
         return resultado("S05", "Proteção da credencial", None, {"credencial_provisionada": False}, motivo="nenhuma credencial provisionada para varrer")
     pastas = [AMB.PROJETO, AMB.VAR, Path("/tmp"), Path("/var/tmp"), Path(ctx.spec["servicos"]["dir"]), Path(ctx.spec["home_base"]), AMB.ETC]
     achados = AMB.varredura_de_credencial(chave_bytes, pastas, ignorar=[AMB.CHAVE])
+    planta = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(20)", chave_bytes.decode()])      # canário plantado: a varredura TEM de achá-lo
+    try:
+        time.sleep(0.5)
+        controle_positivo = any(a["onde"] == f"/proc/{planta.pid}/cmdline" for a in AMB.varredura_de_credencial(chave_bytes, []))
+    finally:
+        planta.kill()
+        planta.wait()
     leitura_por_papel = {}
     for papel in ctx.spec["papeis"]:
         r = ctx.como(papel, f"try:\n open({str(AMB.CHAVE)!r}).read(); print('LEU')\nexcept OSError: print('NEGADO')")
         leitura_por_papel[papel] = r.stdout.strip()
-    ev = {"modo_do_arquivo_ok": cred["ok"], "ocorrencias_fora_do_arquivo_da_credencial": len(achados),
+    ev = {"modo_do_arquivo_ok": cred["ok"], "varredura_acha_canario_plantado_em_argv": controle_positivo, "ocorrencias_fora_do_arquivo_da_credencial": len(achados),
           "nenhum_papel_le_o_arquivo": all(v == "NEGADO" for v in leitura_por_papel.values()), "papeis_testados": len(leitura_por_papel)}
-    ok = cred["ok"] and not achados and ev["nenhum_papel_le_o_arquivo"]
+    ok = cred["ok"] and controle_positivo and not achados and ev["nenhum_papel_le_o_arquivo"]
     return resultado("S05", "Proteção da credencial", ok, ev, {"locais_com_ocorrencia": [a["onde"] for a in achados][:5], "impressao": cred["impressao"]})
 
 
