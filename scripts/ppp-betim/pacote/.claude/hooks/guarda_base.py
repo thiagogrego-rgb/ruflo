@@ -44,7 +44,24 @@ def agente_do_evento(evento):
 def normaliza(texto):
     return unicodedata.normalize("NFC", texto).casefold()
 
+def _enviar_ao_servico(caminho, linha):
+    """True só se o serviço de log (conta própria, encadeada por hash) confirmou a gravação; o papel não escreve em logs/."""
+    import socket
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(2.0)
+            s.connect(caminho)
+            s.sendall((json.dumps({"dados": linha}, ensure_ascii=False) + "\n").encode("utf-8"))
+            return s.makefile("rb").readline().strip() == b"ok"
+    except (OSError, ValueError):
+        return False
+
+def log_obrigatorio():
+    """O lançador por papel exige log confirmado: sem ele a operação é recusada (fail-closed)."""
+    return os.environ.get("PPP_LOGD_OBRIGATORIO") == "1"
+
 def registrar(evento, decisao, motivo, alvo=None):
+    """Registra a decisão. Devolve True se foi gravada; False se o log está indisponível."""
     linha = {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "decisao": decisao,
@@ -54,18 +71,22 @@ def registrar(evento, decisao, motivo, alvo=None):
         "alvo": alvo,
         "motivo": motivo,
     }
+    servico = os.environ.get("PPP_LOGD_SOCKET")
+    if servico:
+        return _enviar_ao_servico(servico, linha)
     try:
         pasta = RAIZ / "logs"
         pasta.mkdir(exist_ok=True)
-        papel = os.environ.get("PPP_PAPEL", "")      # o lançador define; só escolhe QUAL log (cada papel tem o seu, só-anexar)
+        papel = os.environ.get("PPP_PAPEL", "")      # modo legado (sem serviço): escolhe QUAL log, só desenvolvimento/testes
         nome = f"guarda-{papel}.jsonl" if papel and papel.replace("-", "").isalnum() and papel.islower() else "guarda.jsonl"
         fd = os.open(pasta / nome, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640)
         try:
             os.write(fd, (json.dumps(linha, ensure_ascii=False) + "\n").encode("utf-8"))
         finally:
             os.close(fd)
+        return True
     except OSError:
-        pass            # falha de log não pode liberar a operação; a decisão já foi tomada
+        return False        # a decisão já foi tomada; quem chama decide se a falta de log bloqueia (log_obrigatorio)
 
 def carregar_matriz():
     try:
@@ -131,4 +152,4 @@ def _sigilosas_tocadas(partes, sigilosas, liberadas):
     return tocadas
 
 
-__all__ = ['AREA_ESCRITA', 'Consulta', 'FERRAMENTAS_ARQUIVO', 'FERRAMENTAS_LEITURA', 'GLOB_CHARS', 'LIMITE_GLOB', 'RAIZ', 'RAIZ_REAL', 'Recusa', '_prefixo_estatico', '_sigilosas_tocadas', 'agente_do_evento', 'carregar_matriz', 'carregar_politica', 'normaliza', 'registrar', 'relativo_ao_projeto', 'resolver']
+__all__ = ['AREA_ESCRITA', 'Consulta', 'FERRAMENTAS_ARQUIVO', 'FERRAMENTAS_LEITURA', 'GLOB_CHARS', 'LIMITE_GLOB', 'RAIZ', 'RAIZ_REAL', 'Recusa', '_prefixo_estatico', '_sigilosas_tocadas', 'agente_do_evento', 'carregar_matriz', 'carregar_politica', 'log_obrigatorio', 'normaliza', 'registrar', 'relativo_ao_projeto', 'resolver']

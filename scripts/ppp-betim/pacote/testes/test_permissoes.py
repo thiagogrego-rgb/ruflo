@@ -22,7 +22,8 @@ class TestEscrita(Base):
         self.assertEqual(self.p.escrita(self.p.raiz / "produtos/P3/minuta.md", "p3-mercado"), 0)
         self.assertEqual(self.p.escrita("produtos/P3/novo/sub/arquivo.md", "p3-mercado"), 0)
         self.assertEqual(self.p.escrita(self.p.raiz / "produtos/C/plano.md", "c-orquestrador"), 0)
-        self.assertEqual(self.p.escrita(self.p.raiz / "produtos/C/dr.md", "controlador-dr"), 0)
+        self.assertEqual(self.p.escrita(self.p.raiz / "produtos/DR/dr.md", "controlador-dr"), 0)         # GOV-08: o DR tem pasta própria
+        self.assertEqual(self.p.escrita(self.p.raiz / "produtos/C/dr.md", "controlador-dr"), 2)
 
     def test_sessao_principal_grava_em_qualquer_produto(self):
         self.assertEqual(self.p.escrita("produtos/P4/x.md"), 0)
@@ -301,8 +302,10 @@ class TestConfiguracaoDoPacote(unittest.TestCase):
         for agente, dados in self.matriz.items():
             if agente == "revisor-independente":
                 self.assertEqual(dados["escrita"], [])
-            elif agente in ("c-orquestrador", "controlador-dr"):
+            elif agente == "c-orquestrador":
                 self.assertEqual(dados["escrita"], ["produtos/C"])
+            elif agente == "controlador-dr":
+                self.assertEqual(dados["escrita"], ["produtos/DR"])       # GOV-08: nunca onde os agentes de produto leem
             else:
                 self.assertEqual(dados["escrita"], [f"produtos/P{agente[1]}"])
 

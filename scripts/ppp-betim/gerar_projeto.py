@@ -221,18 +221,18 @@ def agentes_da_skill(consumidores):
 
 # Leitura (GOV-06, PROPOSTA sujeita a decisão do coordenador): tudo o que não é área sigilosa é
 # legível; as áreas sigilosas só por quem tem exceção explícita abaixo.
-AREAS_SIGILOSAS = ("dados/entrada", "dados/restritos", "logs", ".claude/settings.local.json")
+AREAS_SIGILOSAS = ("dados/entrada", "dados/restritos", "logs", "produtos/DR", ".claude/settings.local.json")
 LEITURA_EXTRA = {
-    "controlador-dr": ["dados/entrada", "dados/restritos"],
-    "revisor-independente": ["dados/entrada", "dados/restritos", "logs"],
-    "c-orquestrador": ["logs"],
+    "controlador-dr": ["dados/entrada", "dados/restritos", "produtos/DR"],
+    "revisor-independente": ["dados/entrada", "dados/restritos", "logs", "produtos/DR"],
+    "c-orquestrador": ["logs", "produtos/DR"],
 }
 
 def matriz_agentes():
     """Matriz agente -> skills e áreas de escrita (fonte única; gera o JSON e o texto dos agentes)."""
     matriz = {}
     for agente in AGENTS:
-        area = "C" if agente == "controlador-dr" else produto_do_agente(agente)
+        area = "DR" if agente == "controlador-dr" else produto_do_agente(agente)      # GOV-08: o DR escreve só em produtos/DR
         matriz[agente] = {
             "skills": sorted(s for s, v in SKILLS.items() if agente in agentes_da_skill(v[0])),
             "escrita": [] if agente == "revisor-independente" else [f"produtos/{area}"],
@@ -253,11 +253,12 @@ SETTINGS = {
         "deny": (
             [f"Edit(/{a}/**)" for a in AREAS_PROTEGIDAS]
             + ["Edit(/*.md)", "Edit(/*.txt)", "Edit(/*.lock)", "Edit(/.gitignore)"]
+            + ["WebFetch", "WebSearch", "Task", "Agent"]      # GOV-08: rede e delegação fora do escopo (defesa extra ao SO)
         ),
     },
     "hooks": {
         "PreToolUse": [{
-            "matcher": "Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|Skill|Bash|mcp__.*",
+            "matcher": ".*",          # GOV-08: toda ferramenta passa pelo guarda; as desconhecidas são recusadas
             "hooks": [{
                 "type": "command",
                 "command": 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/guarda_ferramentas.py" || exit 2',
@@ -380,10 +381,20 @@ FONTES = (
     "scripts/verificar_configuracao.py",
     "scripts/iniciar_sessao.py",
     "scripts/isolamento.py",
+    "scripts/isolamento_base.py",
+    "scripts/isolamento_so.py",
     "scripts/jaula.py",
+    "scripts/logd.py",
+    "scripts/gateway.py",
+    "scripts/entrada_jaula.py",
     "governanca/papeis.json",
     "governanca/GOV-07-isolamento-por-so.md",
+    "governanca/GOV-08-riscos-criticos.md",
     "testes/test_isolamento.py",
+    "testes/apoio_servicos.py",
+    "testes/modelo_falso.py",
+    "testes/test_servicos.py",
+    "testes/test_runtime.py",
     "testes/test_configuracao.py",
 )
 
@@ -855,6 +866,10 @@ class TestEstrutura(unittest.TestCase):
 - GOV-07: isolamento por contas de SO (DAC), jaula de montagem (bwrap) e lançador por papel; revisão independente
   estática; `claude` real como não-root NÃO EXECUTADO. Documentos reais NÃO liberados
   (`governanca/GOV-07-isolamento-por-so.md`).
+- GOV-08: riscos críticos de GOV-07: `aplicar` sem seguir links, credencial fora da sessão (gateway de rede em namespace
+  vazio), logs gravados só por serviço com cadeia de hash, pasta própria do DR, uma conta por agente P1-P7, `deny` de
+  leitura por papel e cobertura de ferramentas testada com o `claude` real contra um modelo falso roteirizado. Documentos
+  reais NÃO liberados (`governanca/GOV-08-riscos-criticos.md`).
 - Decisões gerais e publicação: bloqueadas.
 - Proteção efetiva: NÃO declarada. Depende de implantação supervisionada em
   infraestrutura onde o agente não tenha privilégio administrativo

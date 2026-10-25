@@ -12,6 +12,15 @@ from apoio_guarda import Base, MATRIZ_ORIGEM, ROOT  # noqa: F401
 class TestLeitura(Base):
     RESTRITO = "dados/restritos/r.txt"
 
+    def test_saida_do_dr_so_e_lida_por_quem_tem_direito(self):
+        """GOV-08: produtos/DR é sigilosa para os agentes de produto (também na camada de ferramentas)."""
+        for agente in ("controlador-dr", "revisor-independente", "c-orquestrador"):
+            self.assertEqual(self.p.leitura("Read", agente, file_path="produtos/DR/saida.txt"), 0, agente)
+        for agente in ("p1-diagnostico", "p3-mercado", "p7-licitacao"):
+            self.assertEqual(self.p.leitura("Read", agente, file_path="produtos/DR/saida.txt"), 2, agente)
+            self.assertEqual(self.p.leitura("Grep", agente, pattern="x", path="produtos/DR"), 2, agente)
+        self.assertEqual(self.p.leitura("Read", None, file_path="produtos/DR/saida.txt"), 2)      # sessão principal sem leitura extra
+
     def test_agente_sem_excecao_nao_le_area_sigilosa(self):
         for destino in (self.RESTRITO, "dados/entrada/e.txt", "logs/l.log",
                         str(self.p.raiz / self.RESTRITO), "./" + self.RESTRITO,
@@ -49,10 +58,13 @@ class TestLeitura(Base):
                         {"pattern": "x", "path": str(self.p.raiz)}, {"pattern": "x", "path": "dados/restritos"}):
             with self.subTest(entrada=entrada):
                 self.assertEqual(self.p.leitura("Grep", "p3-mercado", **entrada), 2)
-        for entrada in ({"pattern": "x", "path": "produtos"}, {"pattern": "x", "path": "registros"},
+        for entrada in ({"pattern": "x", "path": "produtos/P3"}, {"pattern": "x", "path": "produtos/C"}, {"pattern": "x", "path": "registros"},
                         {"pattern": "x", "path": ".claude/skills"}, {"pattern": "x", "path": "dados/processados"}):
             with self.subTest(entrada=entrada):
                 self.assertEqual(self.p.leitura("Grep", "p3-mercado", **entrada), 0)
+        # GOV-08: `produtos` contém a pasta do DR (sigilosa para os agentes de produto); quem não a lê informa a subpasta
+        self.assertEqual(self.p.leitura("Grep", "p3-mercado", pattern="x", path="produtos"), 2)
+        self.assertEqual(self.p.leitura("Grep", "c-orquestrador", pattern="x", path="produtos"), 0)
         # na raiz sempre há área sigilosa (settings.local.json) que ninguém lê: caminho explícito é obrigatório
         self.assertEqual(self.p.leitura("Grep", "revisor-independente", pattern="x"), 2)
         self.assertEqual(self.p.leitura("Grep", "revisor-independente", pattern="x", path="logs"), 0)
@@ -64,9 +76,11 @@ class TestLeitura(Base):
                     "../proj/dados/restritos/*", "dados/{restritos,entrada}/*", "logs/*"):
             with self.subTest(pat=pat):
                 self.assertEqual(self.p.leitura("Glob", "p3-mercado", pattern=pat), 2)
-        for pat in ("registros/**/*.json", "produtos/*/README.md", str(self.p.raiz / "governanca/*.json")):
+        for pat in ("registros/**/*.json", "produtos/P3/*.md", "produtos/C/**/*.md", str(self.p.raiz / "governanca/*.json")):
             with self.subTest(pat=pat):
                 self.assertEqual(self.p.leitura("Glob", "p3-mercado", pattern=pat), 0)
+        self.assertEqual(self.p.leitura("Glob", "p3-mercado", pattern="produtos/*/README.md"), 2)     # varreria produtos/DR
+        self.assertEqual(self.p.leitura("Glob", "c-orquestrador", pattern="produtos/*/README.md"), 0)
         self.assertEqual(self.p.leitura("Glob", "p3-mercado", pattern="*", path="registros"), 0)
 
     def test_fora_do_projeto(self):
