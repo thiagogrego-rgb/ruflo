@@ -152,6 +152,7 @@ def executar(args):
         rodada = {"rotulo": args.rotulo, "modo": ctx.modo, "inicio": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(inicio)),
                   "duracao_s": round(time.time() - inicio, 1), "credencial": ("canário sintético (laboratório)" if lab else
                                                                               f"provisionada por humano, impressão {credencial['impressao']}"),
+                  "codigo_instalado_sha256": AMB.impressao_do_codigo(),
                   "chamada_real_a_api": next(r["resultado"] for r in cenarios if r["id"] == "S04"), "cenarios": cenarios,
                   "resumo": {k: sum(1 for r in cenarios if r["resultado"] == k) for k in (C.PASSOU, C.FALHOU, C.NAO_EXECUTADO)}}
         (saida / f"rodada-{args.rotulo}.json").write_text(json.dumps(rodada, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -177,6 +178,8 @@ def comparar(args):
     dif = []
     if a["rotulo"] == b["rotulo"] or a["inicio"] == b["inicio"]:
         dif.append({"cenario": "*", "diferenca": "as rodadas não são independentes (mesmo rótulo ou mesmo início)"})
+    if a.get("codigo_instalado_sha256") != b.get("codigo_instalado_sha256"):
+        dif.append({"cenario": "*", "diferenca": "as rodadas rodaram com código instalado diferente"})
     if a["modo"] != b["modo"]:
         dif.append({"cenario": "*", "diferenca": f"modos diferentes: {a['modo']} x {b['modo']}"})
     da, db = ({r["id"]: r for r in x["cenarios"]} for x in (a, b))

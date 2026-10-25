@@ -294,7 +294,8 @@ def s06_restricoes_de_rede(ctx):
         s = json.loads(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
         return resultado("S06", "Restrições de rede", False, {"sonda_executou": False}, {"stderr": r.stderr[-300:]})
-    ev = {"so_loopback": s["interfaces"] == ["lo"], "sem_internet": s["internet_1.1.1.1:443"] is False, "sem_rota_ao_ip_do_provedor": s["ip_do_provedor_alcancavel"] is False, "sem_acesso_a_servidor_dns": s["servidor_dns_alcancavel"] is False,
+    recebidos = [q["caminho"].split("?")[0] for q in ctx.modelo.requisicoes]
+    ev = {"destino_so_recebeu_o_pedido_permitido": recebidos == ["/v1/messages"], "so_loopback": s["interfaces"] == ["lo"], "sem_internet": s["internet_1.1.1.1:443"] is False, "sem_rota_ao_ip_do_provedor": s["ip_do_provedor_alcancavel"] is False, "sem_acesso_a_servidor_dns": s["servidor_dns_alcancavel"] is False,
           "sem_acesso_ao_loopback_do_host": s["loopback_do_host_porta_do_modelo"] is False, "gateway_aceita_messages": s["via_gateway_post_messages"] == 200,
           "gateway_recusa_models_get_e_files": s["via_gateway_post_models"] == 403 and s["via_gateway_get_messages"] == 403 and s["via_gateway_post_files"] == 403}
     return resultado("S06", "Restrições de rede (namespace vazio + gateway)", all(ev.values()), ev, {"sonda": s})

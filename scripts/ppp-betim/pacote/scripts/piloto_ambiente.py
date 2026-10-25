@@ -123,6 +123,14 @@ def inventario_de_contas(spec):
 
 
 # ------------------------------------------------------------------------------------------------ instalação
+def impressao_do_codigo():
+    """SHA-256 do código instalado (scripts + papeis.json): amarra as evidências ao que foi realmente executado."""
+    h = hashlib.sha256()
+    for f in sorted([*(CODIGO / "scripts").glob("*.py"), CODIGO / "governanca/papeis.json"]):
+        h.update(f.name.encode() + b"\0" + hashlib.sha256(f.read_bytes()).digest())
+    return h.hexdigest()
+
+
 def _supervisor_vivo():
     try:
         pid = json.loads(STATUS_SUPERVISOR.read_text())["pid"]
