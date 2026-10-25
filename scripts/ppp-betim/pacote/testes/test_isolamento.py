@@ -827,7 +827,8 @@ class TestJaula(unittest.TestCase):
 
     def test_pastas_do_host_ficam_ocultas(self):
         r = self.sonda("p3")
-        self.assertEqual(r["run"], [])
+        servicos = Path(self.spec["servicos"]["dir"])           # por desenho a jaula reexpõe (somente leitura) a pasta dos sockets, se ela existir no host
+        self.assertEqual(r["run"], [servicos.name] if servicos.parent == Path("/run") and servicos.is_dir() else [])
         self.assertEqual(r["root"], [])
         self.assertEqual(r["home_dir"], [])
 
