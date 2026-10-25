@@ -309,6 +309,35 @@ class TestRejeicaoSemReset(Ambiente):
             self.assertEqual(status, 403, f"tentativa {i}")
 
 
+    def test_rajada_de_conexoes_recebe_200_ou_429_e_nunca_erro_de_conexao(self):
+        """Achado do piloto (rodada 2, F6): backlog 5 do listen fazia ~metade de uma rajada de 40 conexões levar EAGAIN no connect."""
+        self.sobe_logd()
+        self.sobe_gateway()
+        sonda = ("import socket,sys,threading,json,collections\n"
+                 "c=sys.argv[1];res=[]\n"
+                 "def um():\n"
+                 " s=socket.socket(socket.AF_UNIX);s.settimeout(60)\n"
+                 " try:\n"
+                 "  s.connect(c);s.sendall(b'POST /v1/messages HTTP/1.0\\r\\nHost: x\\r\\nContent-Length: 7\\r\\n\\r\\n{\"x\":1}')\n"
+                 "  d=b''\n"
+                 "  while True:\n"
+                 "   b=s.recv(4096)\n"
+                 "   if not b:break\n"
+                 "   d+=b\n"
+                 "  res.append(d.split()[1].decode() if d else 'vazio')\n"
+                 " except OSError as e: res.append(type(e).__name__)\n"
+                 " finally: s.close()\n"
+                 "ts=[threading.Thread(target=um) for _ in range(40)]\n"
+                 "[t.start() for t in ts];[t.join() for t in ts]\n"
+                 "print(json.dumps(dict(collections.Counter(res))))\n")
+        from apoio_servicos import rodar_como
+        for i in range(3):
+            r = rodar_como("p3", self.spec, sonda, args=[str(self.gw_socket)])
+            contagem = json.loads(r.stdout.strip().splitlines()[-1])
+            self.assertEqual(set(contagem) - {"200", "429"}, set(), f"rodada {i}: {contagem}")
+            self.assertEqual(sum(contagem.values()), 40)
+
+
 # ------------------------------------------------------------------------------------------------ ambiente do piloto
 class TestAmbiente(unittest.TestCase):
     def setUp(self):

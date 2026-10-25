@@ -151,6 +151,7 @@ class Taxa:
 
 
 class Servidor(socketserver.ThreadingUnixStreamServer):
+    request_queue_size = 128          # o padrão (5) faz clientes em rajada receberem EAGAIN no connect em vez de uma recusa controlada (429)
     daemon_threads = True
 
     def __init__(self, caminho, spec, chave, upstream=None, logd_socket=None, permitir_http=False, proxy=None, ca_arquivo=None):
